@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 
+	. "mikhailche/botcomod/tracer"
+
 	"go.uber.org/zap"
 	tele "gopkg.in/telebot.v3"
 )

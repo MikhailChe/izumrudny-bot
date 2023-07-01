@@ -4,12 +4,18 @@ import (
 	"context"
 	"sync"
 
+	"mikhailche/botcomod/logger"
+	"mikhailche/botcomod/repositories"
+	ydbd "mikhailche/botcomod/repositories/ydb"
+	"mikhailche/botcomod/services"
+	. "mikhailche/botcomod/tracer"
+
 	"github.com/ydb-platform/ydb-go-sdk/v3"
 	"go.uber.org/zap"
 )
 
 type app struct {
-	db           **ydb.Driver
+	db           *ydb.Driver
 	bot          *tBot
 	log          *zap.Logger
 	updateLogger *UpdateLogger
@@ -32,21 +38,25 @@ func newApp() *app {
 	Trace("newApp")()
 	ctx := context.Background()
 
-	log, err := newLogger()
+	log, err := logger.New()
 	if err != nil {
 		panic(err)
 	}
 	log.Info("Инициализируем новое приложение. Вот и логгер уже готов.")
-	ydb, err := NewYDBDriver(ctx, log)
+	ydb, err := ydbd.NewYDBDriver(ctx, log)
 	if err != nil {
 		log.Fatal("Ошибка инициализации YDB в приложении", zap.Error(err))
 	}
-	userRepository, err := NewUserRepository(ydb, log)
+	userRepository, err := NewUserRepository(&ydb, log)
 	if err != nil {
 		log.Fatal("Ошибка инициализации пользовательского репозитория", zap.Error(err))
 	}
 
-	bot, err := NewBot(log, userRepository)
+	housesRepository := repositories.NewHouseRepository(ydb)
+
+	houseService := services.NewHouseService(housesRepository)
+
+	bot, err := NewBot(log, userRepository, houseService.Houses)
 	if err != nil {
 		log.Fatal("Ошибка инициализации бота", zap.Error(err))
 	}

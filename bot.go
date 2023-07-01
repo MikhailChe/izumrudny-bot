@@ -9,6 +9,9 @@ import (
 	"strings"
 	"time"
 
+	"mikhailche/botcomod/repositories"
+	. "mikhailche/botcomod/tracer"
+
 	"go.uber.org/zap"
 	tele "gopkg.in/telebot.v3"
 )
@@ -23,14 +26,14 @@ type tBot struct {
 	bot *tele.Bot
 }
 
-func NewBot(log *zap.Logger, userRepository *UserRepository) (*tBot, error) {
+func NewBot(log *zap.Logger, userRepository *UserRepository, houses func() repositories.THouses) (*tBot, error) {
 	var b tBot
 	rand.Seed(time.Now().UnixMicro())
-	b.Init(log, userRepository)
+	b.Init(log, userRepository, houses)
 	return &b, nil
 }
 
-func (b *tBot) Init(log *zap.Logger, userRepository *UserRepository) {
+func (b *tBot) Init(log *zap.Logger, userRepository *UserRepository, houses func() repositories.THouses) {
 	defer Trace("botInit")()
 	var err error
 	telegramToken := os.Getenv("TELEGRAM_TOKEN")
@@ -218,7 +221,7 @@ func (b *tBot) Init(log *zap.Logger, userRepository *UserRepository) {
 	bot.Handle(&helpfulPhonesBtn, phonesHandler)
 	bot.Handle("/phones", phonesHandler)
 
-	registrationService := newTelegramRegistrator(log, userRepository, helpMainMenuBtn)
+	registrationService := newTelegramRegistrator(log, userRepository, houses, helpMainMenuBtn)
 	registrationService.Register(bot)
 
 	var authMiddleware tele.MiddlewareFunc = func(next tele.HandlerFunc) tele.HandlerFunc {
@@ -514,7 +517,7 @@ func (b *tBot) Init(log *zap.Logger, userRepository *UserRepository) {
 	}
 	authGroup.Handle(&videoCamerasBtn, videoCamerasHandler)
 
-	residentsChatter, err := NewResidentsChatter(userRepository, helpMainMenuBtn)
+	residentsChatter, err := NewResidentsChatter(userRepository, houses, helpMainMenuBtn)
 	if err != nil {
 		log.Fatal("Ошибка инициализации чатов", zap.Error(err))
 	}

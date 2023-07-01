@@ -14,22 +14,21 @@ type houseRepo interface {
 	GetHouses(ctx context.Context) (repositories.THouses, error)
 }
 
-func NewHouseService(repo houseRepo) (*HouseService, error) {
+func NewHouseService(repo houseRepo) *HouseService {
 	service := HouseService{}
-	go func() {
-		ctx := context.Background()
-		delay := 1 * time.Second
-		for {
-			houses, err := repo.GetHouses(ctx)
-			if err != nil {
-				delay += 1 * time.Second
-				time.Sleep(delay)
-				continue
-			}
-			service.cache = houses
+	ctx := context.Background()
+	delay := 1 * time.Second
+	for {
+		houses, err := repo.GetHouses(ctx)
+		if err != nil {
+			delay += 1 * time.Second
+			time.Sleep(delay)
+			continue
 		}
-	}()
-	return &service, nil
+		service.cache = houses
+		break
+	}
+	return &service
 }
 
 func (h *HouseService) Houses() repositories.THouses {

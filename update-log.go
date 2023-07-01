@@ -19,12 +19,12 @@ type YDBUpdateLogEntry struct {
 }
 
 type UpdateLogger struct {
-	db      **ydb.Driver
+	db      *ydb.Driver
 	log     *zap.Logger
 	entries chan YDBUpdateLogEntry
 }
 
-func newUpdateLogger(db **ydb.Driver, logger *zap.Logger) *UpdateLogger {
+func newUpdateLogger(db *ydb.Driver, logger *zap.Logger) *UpdateLogger {
 	upLogger := &UpdateLogger{db: db, log: logger, entries: make(chan YDBUpdateLogEntry, 8)}
 	upLogger.runYDBWorker()
 	return upLogger

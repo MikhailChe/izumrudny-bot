@@ -128,17 +128,17 @@ func (r *telegramRegistrator) HandleStartRegistration(ctx tele.Context) error {
 	if len(data) == 0 || len(data) == 1 && data[0] == "" {
 		chooseHouseMenu := &tele.ReplyMarkup{}
 		var rows []tele.Row
-		for _, house := range HOUSES {
-			rows = append(rows, chooseHouseMenu.Row(chooseHouseMenu.Data(house.number, r.EntryPoint().Unique, house.number)))
+		for _, house := range r.houses() {
+			rows = append(rows, chooseHouseMenu.Row(chooseHouseMenu.Data(house.Number, r.EntryPoint().Unique, house.Number)))
 		}
 		rows = append(rows, chooseHouseMenu.Row(r.backBtn))
 		chooseHouseMenu.Inline(rows...)
 		return ctx.EditOrReply("Выберите номер дома", chooseHouseMenu)
 	}
 	houseNumber := data[0]
-	var house *tHouse
-	for _, h := range HOUSES {
-		if houseNumber == h.number {
+	var house *repositories.THouse
+	for _, h := range r.houses() {
+		if houseNumber == h.Number {
 			house = &h
 			break
 		}
@@ -150,18 +150,18 @@ func (r *telegramRegistrator) HandleStartRegistration(ctx tele.Context) error {
 	if len(data) == 1 {
 		chooseAppartmentRangeMenu := &tele.ReplyMarkup{}
 		var rows []tele.Row
-		for i := house.rooms.min; i <= house.rooms.max; i += 64 {
+		for i := house.Rooms.Min; i <= house.Rooms.Max; i += 64 {
 			range_min := i
 			range_max := i + 63
-			if range_max > house.rooms.max {
-				range_max = house.rooms.max
+			if range_max > house.Rooms.Max {
+				range_max = house.Rooms.Max
 			}
 			rangeFmt := fmt.Sprintf("%d - %d", range_min, range_max)
-			rows = append(rows, chooseAppartmentRangeMenu.Row(chooseAppartmentRangeMenu.Data(rangeFmt, r.EntryPoint().Unique, house.number, fmt.Sprint(range_min))))
+			rows = append(rows, chooseAppartmentRangeMenu.Row(chooseAppartmentRangeMenu.Data(rangeFmt, r.EntryPoint().Unique, house.Number, fmt.Sprint(range_min))))
 		}
 		rows = append(rows, chooseAppartmentRangeMenu.Row(r.backBtn))
 		chooseAppartmentRangeMenu.Inline(rows...)
-		return ctx.EditOrReply("🏠 Дом "+house.number+". Выберите номер квартиры", chooseAppartmentRangeMenu)
+		return ctx.EditOrReply("🏠 Дом "+house.Number+". Выберите номер квартиры", chooseAppartmentRangeMenu)
 	}
 	appartmentRangeMin, err := strconv.Atoi(data[1])
 	if err != nil {
@@ -173,10 +173,10 @@ func (r *telegramRegistrator) HandleStartRegistration(ctx tele.Context) error {
 		var rows []tele.Row
 		var buttons []tele.Btn
 
-		for i := appartmentRangeMin; i <= appartmentRangeMin+65 && i <= house.rooms.max; i++ {
+		for i := appartmentRangeMin; i <= appartmentRangeMin+65 && i <= house.Rooms.Max; i++ {
 			buttons = append(buttons, chooseAppartmentMenu.Data(
 				fmt.Sprint(i),
-				r.EntryPoint().Unique, house.number, fmt.Sprint(appartmentRangeMin), fmt.Sprint(i)))
+				r.EntryPoint().Unique, house.Number, fmt.Sprint(appartmentRangeMin), fmt.Sprint(i)))
 			if i%8 == 0 {
 				rows = append(rows, chooseAppartmentMenu.Row(buttons...))
 				buttons = nil
@@ -188,7 +188,7 @@ func (r *telegramRegistrator) HandleStartRegistration(ctx tele.Context) error {
 		}
 		rows = append(rows, chooseAppartmentMenu.Row(r.backBtn))
 		chooseAppartmentMenu.Inline(rows...)
-		return ctx.EditOrReply("🏠 Дом "+house.number+". Выберите номер квартиры", chooseAppartmentMenu)
+		return ctx.EditOrReply("🏠 Дом "+house.Number+". Выберите номер квартиры", chooseAppartmentMenu)
 	}
 	appartmentNumber, err := strconv.Atoi(data[2])
 	if err != nil {
@@ -197,8 +197,8 @@ func (r *telegramRegistrator) HandleStartRegistration(ctx tele.Context) error {
 	if len(data) == 3 {
 		confirmMenu := &tele.ReplyMarkup{}
 		confirmMenu.Inline(
-			confirmMenu.Row(confirmMenu.Data("✅ Да, всё верно", r.EntryPoint().Unique, house.number, fmt.Sprint(appartmentRangeMin), fmt.Sprint(appartmentNumber), fmt.Sprint("OK"))),
-			confirmMenu.Row(confirmMenu.Data("❌ Неверная квартира", r.EntryPoint().Unique, house.number)),
+			confirmMenu.Row(confirmMenu.Data("✅ Да, всё верно", r.EntryPoint().Unique, house.Number, fmt.Sprint(appartmentRangeMin), fmt.Sprint(appartmentNumber), fmt.Sprint("OK"))),
+			confirmMenu.Row(confirmMenu.Data("❌ Неверная квартира", r.EntryPoint().Unique, house.Number)),
 			confirmMenu.Row(confirmMenu.Data("❌ Неверный номер дома", r.EntryPoint().Unique)),
 			confirmMenu.Row(r.backBtn),
 		)

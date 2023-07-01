@@ -3,6 +3,8 @@ package main
 import (
 	"net/http"
 	"strings"
+
+	. "mikhailche/botcomod/tracer"
 )
 
 func TracedHttpClient(botToken string) *http.Client {

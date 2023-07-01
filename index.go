@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 
+	. "mikhailche/botcomod/tracer"
+
 	"go.uber.org/zap"
 	tele "gopkg.in/telebot.v3"
 )
@@ -22,9 +24,6 @@ type LambdaRequest struct {
 func Handler(ctx context.Context, body []byte) (*LambdaResponse, error) {
 	defer Trace("Handler")()
 	app := APP()
-	defer func() {
-		app.log.Info("Трассировка", zap.Any("trace", ChromeTraceEvents(globaltracectx.rootSpan)))
-	}()
 	defer func() {
 		if r := recover(); r != nil {
 			app.log.WithOptions(zap.AddCallerSkip(3)).Error("Паника в верхнем уровне", zap.Any("panicObj", r))

@@ -58,6 +58,10 @@ type HouseRepository struct {
 	DB *ydb.Driver
 }
 
+func NewHouseRepository(driver *ydb.Driver) *HouseRepository {
+	return &HouseRepository{driver}
+}
+
 func (h *HouseRepository) Init(ctx context.Context) error {
 	defer Trace("HouseRepository::Init")()
 	return h.DB.Table().Do(ctx, func(ctx context.Context, s table.Session) error {
