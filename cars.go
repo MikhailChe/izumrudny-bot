@@ -84,7 +84,7 @@ func (c *carsHandler) HandleAddCar(ctx tele.Context) error {
 	var rows []tele.Row
 	if needLetter(currentPlate) {
 		var letterButtons []tele.Btn
-		for _, letter := range []rune("ABCEHKMOPTX") {
+		for _, letter := range []rune("ABCEHKMOPTXY") {
 			letterButtons = append(letterButtons, markup.Data(string(letter), ctx.Callback().Unique, currentPlate+string(letter)))
 		}
 		rows = append(rows, markup.Split(4, letterButtons)...)

@@ -110,7 +110,7 @@ func (r *telegramRegistrator) HandleMediaCreated(user *User, ctx tele.Context) e
 		Сравни с квитанцией. Похоже?`,
 		[]any{
 			ctx.Sender().Username, ctx.Sender().FirstName, ctx.Sender().LastName,
-			user.Registration.Events.Start.HouseNumber, user.Registration.Events.Start.Appartment},
+			user.Registration.Events.Start.HouseNumber, user.Registration.Events.Start.Apartment},
 		markup)
 }
 

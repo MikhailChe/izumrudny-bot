@@ -1,5 +1,10 @@
 go vet ./... && \
 go fmt ./... && 
+TEMPDIR=`mktemp -d` || exit 1
+echo "Created temporary $TEMPDIR" 
+cp -r . $TEMPDIR
+pushd $TEMPDIR
+rm -rf .git
 yc serverless function version create \
   --function-id=d4eld3krf4lqpap8fe2p \
   --entrypoint index.Handler \
@@ -15,3 +20,5 @@ yc serverless function set-scaling-policy \
   --zone-instances-limit=1 \
   --zone-requests-limit=2 \
   --provisioned-instances-count=0
+popd
+rm -rf $TEMPDIR

@@ -6,10 +6,8 @@ import (
 	"os"
 	"time"
 
-	ydbZap "github.com/ydb-platform/ydb-go-sdk-zap"
 	"github.com/ydb-platform/ydb-go-sdk/v3"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
-	"github.com/ydb-platform/ydb-go-sdk/v3/trace"
 	yc "github.com/ydb-platform/ydb-go-yc"
 	"go.uber.org/zap"
 
@@ -28,7 +26,7 @@ func ydbOpen(ctx context.Context, log *zap.Logger) (*ydb.Driver, error) {
 		"grpcs://ydb.serverless.yandexcloud.net:2135/ru-central1/b1gekmt72ibh4jkb7edu/etnq0a1lnsfuvp5eulft",
 		yc.WithInternalCA(),
 		credOption,
-		ydbZap.WithTraces(log, trace.DatabaseSQLEvents|trace.RatelimiterEvents|trace.TableEvents, ydbZap.WithLogQuery()),
+		// ydbZap.WithTraces(log, trace.DatabaseSQLEvents|trace.RatelimiterEvents|trace.TableEvents, ydbZap.WithLogQuery()),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("ydbOpen: %w", err)

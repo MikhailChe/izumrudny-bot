@@ -21,24 +21,25 @@ type Car struct {
 	LicensePlate string `json:"plate"`
 }
 
-type Appart struct {
-	HouseNumber      string `json:"house"`
-	AppartmentNumber string `json:"appartment"`
-	NeedApprove      bool   `json:"need_approve"`
+type Apartment struct {
+	HouseNumber     string `json:"house"`
+	ApartmentNumber string `json:"appartment"`
+	NeedApprove     bool   `json:"need_approve"`
 }
 
-type Apparts []Appart
+// UserApartments модель json данных из таблицы user колонки appartments
+type UserApartments []Apartment
 
-func (a *Apparts) UnmarshalJSON(bb []byte) error {
-	defer Trace("Apparts::UnmarshalJSON")()
+func (a *UserApartments) UnmarshalJSON(bb []byte) error {
+	defer Trace("UserApartments::UnmarshalJSON")()
 	if len(bb) == 0 {
 		return nil
 	}
-	var apprt []Appart
-	if err := json.Unmarshal(bb, &apprt); err != nil {
-		return fmt.Errorf("appart decoding of [%s]: %w", string(bb), err)
+	var apartments []Apartment
+	if err := json.Unmarshal(bb, &apartments); err != nil {
+		return fmt.Errorf("apartments decoding of [%s]: %w", string(bb), err)
 	}
-	*a = apprt
+	*a = apartments
 	return nil
 }
 
@@ -68,7 +69,7 @@ type tRegistration struct {
 type User struct {
 	ID                 int64
 	Username           string
-	Appartments        Apparts
+	Apartments         UserApartments
 	Cars               Cars
 	IsApprovedResident bool
 	Registration       *tRegistration `json:"-"`
@@ -79,7 +80,7 @@ func (u *User) Scan(res result.Result) error {
 	defer Trace("User::Scan")()
 	return res.ScanNamed(
 		named.Required("id", &u.ID),
-		named.OptionalWithDefault("appartments", &u.Appartments),
+		named.OptionalWithDefault("appartments", &u.Apartments),
 		named.OptionalWithDefault("cars", &u.Cars),
 		named.OptionalWithDefault("is_approved_resident", &u.IsApprovedResident),
 		named.OptionalWithDefault("username", &u.Username),
@@ -118,11 +119,11 @@ func (u *UserEventRecord) Scan(res result.Result) error {
 }
 
 type UserRepository struct {
-	DB  **ydb.Driver
+	DB  *ydb.Driver
 	log *zap.Logger
 }
 
-func NewUserRepository(ydb **ydb.Driver, log *zap.Logger) (*UserRepository, error) {
+func NewUserRepository(ydb *ydb.Driver, log *zap.Logger) (*UserRepository, error) {
 	defer Trace("NewUserRepository")()
 	return &UserRepository{DB: ydb, log: log}, nil
 }
@@ -162,11 +163,13 @@ func (r *UserRepository) GetById(ctx context.Context, userID int64) (*User, erro
 		if !res.NextResultSet(ctx) {
 			return fmt.Errorf("не нашел result set для событий пользователя")
 		}
+		r.log.Info("Получил список событий пользователя")
 		for res.NextRow() {
 			var event UserEventRecord
 			if err := event.Scan(res); err != nil {
 				return fmt.Errorf("не смог пользовательские события: %w", err)
 			}
+			r.log.Info("Применяю событие", zap.Any("event", event))
 			event.Event.Apply(&user)
 			user.Events = append(user.Events, event)
 		}
@@ -207,8 +210,8 @@ func (r *UserRepository) FindByAppartment(ctx context.Context, house string, app
 		if err != nil {
 			return nil, err
 		}
-		for _, appart := range user.Appartments {
-			if appart.HouseNumber == house && appart.AppartmentNumber == appartment {
+		for _, appart := range user.Apartments {
+			if appart.HouseNumber == house && appart.ApartmentNumber == appartment {
 				return user, nil
 			}
 		}

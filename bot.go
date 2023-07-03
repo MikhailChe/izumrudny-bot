@@ -159,7 +159,7 @@ func (b *tBot) Init(log *zap.Logger, userRepository *UserRepository, houses func
 		{"", "108А (1)", ""}, // Ищем чат. Только whatsapp?
 		{"", "108Б (2.1)", "tg://join?invite=AAAAAE3DM-8CZRMXaWkdnA"},              // Надо запросить у некоего Максима? Но другой модератор не против
 		{"", "108В (2.2.3)", ""},                                                   // нерабочая. Админ +79126108581 ?
-		{"108g", "108Г (2.2.1) [140+] 🔐 ", "tg://join?invite=hUZOcPT_D_xkNGNi"},    // Одобренно
+		{"", "108Г (2.2.1) [140+] 🔐 ", "tg://join?invite=hUZOcPT_D_xkNGNi"},        // Одобренно
 		{"", "108Ж (3.1)", "tg://join?invite=OHMCklAiyh41MzMy"},                    // Надо спросить одобррение
 		{"", "Дом №7 108И (3.2) 🔐", "tg://join?invite=gLliTXmLrw84MTUy"},           // Ссылка-заявка. Одобрена.
 		{"", "Дом №8 (22 этажа) [I 2023]🔐", "tg://join?invite=p12hpWf0WMNjMGE6"},   // Ссылка-заявка. Одобрена.
@@ -353,119 +353,6 @@ func (b *tBot) Init(log *zap.Logger, userRepository *UserRepository, houses func
 		}
 		return ctx.EditOrReply("Привет! " + botDescription + "\nИспользуйте команду /help для вызова меню")
 	})
-	/*
-	   	bot.Handle(&registerBtn, func(ctx tele.Context) error {
-	   		defer Trace("registerBtn")()
-	   		stdctx := context.Background()
-	   		user, err := userRepository.GetById(stdctx, ctx.Sender().ID)
-	   		if err != nil {
-	   			return fmt.Errorf("регистрация: %w", err)
-	   		}
-	   		if user.Registration != nil {
-	   			return handleContinueRegistration(ctx, stdctx, user)
-	   		}
-	   		data := ctx.Args()
-	   		if len(data) == 0 || len(data) == 1 && data[0] == "" {
-	   			chooseHouseMenu := bot.NewMarkup()
-	   			var rows []tele.Row
-	   			for _, house := range HOUSES {
-	   				rows = append(rows, chooseHouseMenu.Row(chooseHouseMenu.Data(house.number, registerBtn.Unique, house.number)))
-	   			}
-	   			rows = append(rows, chooseHouseMenu.Row(helpMainMenuBtn))
-	   			chooseHouseMenu.Inline(rows...)
-	   			return ctx.EditOrReply("Выберите номер дома", chooseHouseMenu)
-	   		}
-	   		houseNumber := data[0]
-	   		var house *tHouse
-	   		for _, h := range HOUSES {
-	   			if houseNumber == h.number {
-	   				house = &h
-	   				break
-	   			}
-	   		}
-	   		if house == nil {
-	   			return ctx.EditOrReply("Что-то пошло не по плану")
-	   		}
-	   		// Доступен номер дома
-	   		if len(data) == 1 {
-	   			chooseAppartmentRangeMenu := bot.NewMarkup()
-	   			var rows []tele.Row
-	   			for i := house.rooms.min; i <= house.rooms.max; i += 64 {
-	   				range_min := i
-	   				range_max := i + 63
-	   				if range_max > house.rooms.max {
-	   					range_max = house.rooms.max
-	   				}
-	   				rangeFmt := fmt.Sprintf("%d - %d", range_min, range_max)
-	   				rows = append(rows, chooseAppartmentRangeMenu.Row(chooseAppartmentRangeMenu.Data(rangeFmt, registerBtn.Unique, house.number, fmt.Sprint(range_min))))
-	   			}
-	   			rows = append(rows, chooseAppartmentRangeMenu.Row(helpMainMenuBtn))
-	   			chooseAppartmentRangeMenu.Inline(rows...)
-	   			return ctx.EditOrReply("🏠 Дом "+house.number+". Выберите номер квартиры", chooseAppartmentRangeMenu)
-	   		}
-	   		appartmentRangeMin, err := strconv.Atoi(data[1])
-	   		if err != nil {
-	   			return ctx.EditOrReply("Что-то пошло не по плану")
-	   		}
-	   		// Доступен диапазон квартир
-	   		if len(data) == 2 {
-	   			chooseAppartmentMenu := bot.NewMarkup()
-	   			var rows []tele.Row
-	   			var buttons []tele.Btn
-
-	   			for i := appartmentRangeMin; i <= appartmentRangeMin+65 && i <= house.rooms.max; i++ {
-	   				buttons = append(buttons, chooseAppartmentMenu.Data(
-	   					fmt.Sprint(i),
-	   					registerBtn.Unique, house.number, fmt.Sprint(appartmentRangeMin), fmt.Sprint(i)))
-	   				if i%8 == 0 {
-	   					rows = append(rows, chooseAppartmentMenu.Row(buttons...))
-	   					buttons = nil
-	   				}
-	   			}
-	   			if len(buttons) > 0 {
-	   				rows = append(rows, chooseAppartmentMenu.Row(buttons...))
-	   				buttons = nil
-	   			}
-	   			rows = append(rows, chooseAppartmentMenu.Row(helpMainMenuBtn))
-	   			chooseAppartmentMenu.Inline(rows...)
-	   			return ctx.EditOrReply("🏠 Дом "+house.number+". Выберите номер квартиры", chooseAppartmentMenu)
-	   		}
-	   		appartmentNumber, err := strconv.Atoi(data[2])
-	   		if err != nil {
-	   			return ctx.EditOrReply("Что-то пошло не по плану")
-	   		}
-	   		if len(data) == 3 {
-	   			confirmMenu := bot.NewMarkup()
-	   			confirmMenu.Inline(
-	   				confirmMenu.Row(confirmMenu.Data("✅ Да, всё верно", registerBtn.Unique, house.number, fmt.Sprint(appartmentRangeMin), fmt.Sprint(appartmentNumber), fmt.Sprint("OK"))),
-	   				confirmMenu.Row(confirmMenu.Data("❌ Неверная квартира", registerBtn.Unique, house.number)),
-	   				confirmMenu.Row(confirmMenu.Data("❌ Неверный номер дома", registerBtn.Unique)),
-	   				confirmMenu.Row(helpMainMenuBtn),
-	   			)
-	   			return ctx.EditOrReply(fmt.Sprintf(`Давайте проверим, что всё верно.
-	   🏠 Дом %s
-	   🚪 Квартира %d
-	   Всё верно?`,
-	   				houseNumber, appartmentNumber,
-	   			),
-	   				confirmMenu,
-	   			)
-	   		}
-	   		code, err := userRepository.StartRegistration(context.Background(), ctx.Sender().ID, int64(ctx.Update().ID), houseNumber, fmt.Sprint(appartmentNumber))
-	   		if err != nil {
-	   			if serr := ctx.EditOrReply(`Извините, в процессе регистрации произошла ошибка. Исправим как можно скорее.`); serr != nil {
-	   				return serr
-	   			}
-	   			return fmt.Errorf("старт регистрации: %w", err)
-	   		}
-	   		if err := ctx.EditOrReply(`Спасибо за регистрацию.
-	   В ваш почтовый ящик будет отправлен код подтверждения.
-	   Введите его, чтобы завершить регистрацию.`, getResidentsMarkup(ctx)); err != nil {
-	   			return fmt.Errorf("отправка сообщения регистрации: %w", err)
-	   		}
-	   		return sendToDeveloper(ctx, log, fmt.Sprintf("Новая регистрация. Дом %s квартира %d. Код регистрации: %s", houseNumber, appartmentNumber, code))
-	   	})
-	*/
 
 	bot.Handle("/whoami", func(ctx tele.Context) error {
 		defer Trace("/whoami")()

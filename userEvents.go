@@ -20,7 +20,7 @@ type UserEvent interface {
 type startRegistrationEvent struct {
 	UpdateID     int64
 	HouseNumber  string
-	Appartment   string
+	Apartment    string `json:"Appartment"`
 	ApproveCode  string
 	InvalidCodes []string
 }
@@ -39,10 +39,10 @@ type confirmRegistrationEvent struct {
 
 func (e *confirmRegistrationEvent) Apply(u *User) {
 	defer Trace("confirmRegistrationEvent::Apply")()
-	u.Appartments = append(u.Appartments, Appart{
-		HouseNumber:      u.Registration.Events.Start.HouseNumber,
-		AppartmentNumber: u.Registration.Events.Start.Appartment,
-		NeedApprove:      false,
+	u.Apartments = append(u.Apartments, Apartment{
+		HouseNumber:     u.Registration.Events.Start.HouseNumber,
+		ApartmentNumber: u.Registration.Events.Start.Apartment,
+		NeedApprove:     false,
 	})
 	u.IsApprovedResident = true
 	u.Registration = nil
