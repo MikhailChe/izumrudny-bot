@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"mikhailche/botcomod/handlers"
 	"mikhailche/botcomod/repositories"
 	. "mikhailche/botcomod/tracer"
 
@@ -26,14 +27,14 @@ type tBot struct {
 	bot *tele.Bot
 }
 
-func NewBot(log *zap.Logger, userRepository *UserRepository, houses func() repositories.THouses) (*tBot, error) {
+func NewBot(log *zap.Logger, userRepository *UserRepository, houses func() repositories.THouses, groupChats func() repositories.TGroupChats) (*tBot, error) {
 	var b tBot
 	rand.Seed(time.Now().UnixMicro())
-	b.Init(log, userRepository, houses)
+	b.Init(log, userRepository, houses, groupChats)
 	return &b, nil
 }
 
-func (b *tBot) Init(log *zap.Logger, userRepository *UserRepository, houses func() repositories.THouses) {
+func (b *tBot) Init(log *zap.Logger, userRepository *UserRepository, houses func() repositories.THouses, groupChats func() repositories.TGroupChats) {
 	defer Trace("botInit")()
 	var err error
 	telegramToken := os.Getenv("TELEGRAM_TOKEN")
@@ -59,9 +60,9 @@ func (b *tBot) Init(log *zap.Logger, userRepository *UserRepository, houses func
 		Client: TracedHttpClient(telegramToken),
 	}
 
-	traceNewBot := Trace("NewBot")
+	finishTraceNewBot := Trace("NewBot")
 	bot, err := tele.NewBot(pref)
-	traceNewBot()
+	finishTraceNewBot()
 	if err != nil {
 		log.Fatal("Cannot start bot", zap.Error(err))
 		return
@@ -105,11 +106,15 @@ func (b *tBot) Init(log *zap.Logger, userRepository *UserRepository, houses func
 		}
 	})
 
-	bot.Handle("/chatidlink", func(ctx tele.Context) error {
-		defer Trace("/chatidlink")()
-		markup := &tele.ReplyMarkup{}
-		markup.Inline(markup.Row(markup.URL("Общаться", fmt.Sprintf("tg://user?id=%s", ctx.Args()[0]))))
-		return ctx.Reply("Ссылка на чат", markup)
+	log.Info("Adding admin command controller")
+	handlers.AdminCommandController(bot.Group(), func(hf tele.HandlerFunc) tele.HandlerFunc {
+		return func(ctx tele.Context) error {
+			defer Trace("AdminCommandControllerAuth middleware")()
+			if userRepository.IsAdmin(context.Background(), ctx.Sender().ID) {
+				return hf(ctx)
+			}
+			return nil
+		}
 	})
 
 	var markup = bot.NewMarkup()
@@ -148,25 +153,11 @@ func (b *tBot) Init(log *zap.Logger, userRepository *UserRepository, houses func
 	bot.Handle(&helpMainMenuBtn, helpHandler)
 
 	type chatInvite struct {
-		group string
-		name  string
-		link  string
+		Group string
+		Name  string
+		Link  string
 	}
-	var inviteLinks []chatInvite = []chatInvite{
-		{"common", "Общий чат [800+]", "tg://join?invite=b8lTkd4S080xZmNi"}, // Дали разрешение
-		{"common", "Веселые соседи [400+]", "tg://resolve?domain=izubor"},   // Веселые соседи. @acroNT.
-		{"", "Я - мастер (услуги)", "tg://join?invite=NKvP4Z8aBJw5Nzky"},    // @kudahochy (бываш johnananin)
-		{"", "108А (1)", ""}, // Ищем чат. Только whatsapp?
-		{"", "108Б (2.1)", "tg://join?invite=AAAAAE3DM-8CZRMXaWkdnA"},              // Надо запросить у некоего Максима? Но другой модератор не против
-		{"", "108В (2.2.3)", ""},                                                   // нерабочая. Админ +79126108581 ?
-		{"", "108Г (2.2.1) [140+] 🔐 ", "tg://join?invite=hUZOcPT_D_xkNGNi"},        // Одобренно
-		{"", "108Ж (3.1)", "tg://join?invite=OHMCklAiyh41MzMy"},                    // Надо спросить одобррение
-		{"", "Дом №7 108И (3.2) 🔐", "tg://join?invite=gLliTXmLrw84MTUy"},           // Ссылка-заявка. Одобрена.
-		{"", "Дом №8 (22 этажа) [I 2023]🔐", "tg://join?invite=p12hpWf0WMNjMGE6"},   // Ссылка-заявка. Одобрена.
-		{"", "Дом №9 (30 этажей) [II 2023]🔐", "tg://join?invite=9z1C4B9Bzsc2MzI6"}, // Ссылка-заявка. Считаем, что одобрена, но надо пообщаться с автором
-		{"", "Дом №10 (30 этажей) [II 2023]🔐", "tg://resolve?domain=ibdom10"},      // @johnananin
-		{"", "Паркинг (108К)", "tg://join?invite=Jmzyi_yzu1dkODAy"},                // Одобренно
-	}
+
 	chatsHandler := func(ctx tele.Context) error {
 		defer Trace("chatsHandler")()
 		var markup = bot.NewMarkup()
@@ -178,15 +169,16 @@ func (b *tBot) Init(log *zap.Logger, userRepository *UserRepository, houses func
 			}
 			linkGroup = nil
 		}
+		inviteLinks := groupChats()
 		for i, link := range inviteLinks {
-			if i > 0 && (link.group == "" || link.group != inviteLinks[i-1].group) {
+			if i > 0 && (link.Group == "" || link.Group != inviteLinks[i-1].Group) {
 				dumpMe()
 			}
 			// BEFORE POINTER
 			// ------------------
 			// AFTER POINTER
-			if link.link != "" {
-				linkGroup = append(linkGroup, markup.URL(link.name, link.link))
+			if link.Link != "" {
+				linkGroup = append(linkGroup, markup.URL(link.Name, link.Link))
 			}
 			if i >= len(inviteLinks)-1 {
 				dumpMe()

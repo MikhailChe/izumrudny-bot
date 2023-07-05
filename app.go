@@ -53,10 +53,12 @@ func newApp() *app {
 	}
 
 	housesRepository := repositories.NewHouseRepository(ydb)
-
 	houseService := services.NewHouseService(housesRepository)
 
-	bot, err := NewBot(log, userRepository, houseService.Houses)
+	groupChatRepository := repositories.NewGroupChatRepository(ydb)
+	groupChatService := services.NewGroupChatService(groupChatRepository)
+
+	bot, err := NewBot(log, userRepository, houseService.Houses, groupChatService.GroupChats)
 	if err != nil {
 		log.Fatal("Ошибка инициализации бота", zap.Error(err))
 	}

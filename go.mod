@@ -3,7 +3,6 @@ module mikhailche/botcomod
 go 1.19
 
 require (
-	github.com/ydb-platform/ydb-go-sdk-zap v0.15.0
 	github.com/ydb-platform/ydb-go-sdk/v3 v3.43.0
 	github.com/ydb-platform/ydb-go-yc v0.10.2
 	go.uber.org/zap v1.24.0

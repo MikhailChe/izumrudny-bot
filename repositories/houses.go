@@ -65,7 +65,6 @@ func NewHouseRepository(driver *ydb.Driver) *HouseRepository {
 func (h *HouseRepository) Init(ctx context.Context) error {
 	defer Trace("HouseRepository::Init")()
 	return h.DB.Table().Do(ctx, func(ctx context.Context, s table.Session) error {
-		print("Создаём таблицу house")
 		return s.CreateTable(ctx, path.Join(h.DB.Name(), "house"),
 			options.WithColumn("id", types.TypeUint64),
 			options.WithColumn("number", types.Optional(types.TypeString)),
