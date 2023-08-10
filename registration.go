@@ -14,7 +14,7 @@ import (
 
 type telegramRegistrator struct {
 	log            *zap.Logger
-	userRepository *UserRepository
+	userRepository registratorUserRepository
 	houses         func() repositories.THouses
 	//buttons
 	backBtn         tele.Btn
@@ -25,7 +25,15 @@ type telegramRegistrator struct {
 
 const registrationChatID = -1001860029647
 
-func newTelegramRegistrator(log *zap.Logger, userRepository *UserRepository, houses func() repositories.THouses, backBtn tele.Btn) *telegramRegistrator {
+type registratorUserRepository interface {
+	GetById(ctx context.Context, userID int64) (*User, error)
+
+	StartRegistration(ctx context.Context, userID int64, UpdateID int64, houseNumber string, apartment string) (approveCode string, err error)
+	ConfirmRegistration(ctx context.Context, userID int64, event confirmRegistrationEvent) error
+	FailRegistration(ctx context.Context, userID int64, event failRegistrationEvent) error
+}
+
+func newTelegramRegistrator(log *zap.Logger, userRepository registratorUserRepository, houses func() repositories.THouses, backBtn tele.Btn) *telegramRegistrator {
 	markup := &tele.ReplyMarkup{}
 	return &telegramRegistrator{
 		backBtn:         backBtn,

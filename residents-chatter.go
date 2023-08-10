@@ -12,7 +12,7 @@ import (
 )
 
 type ResidentsChatter struct {
-	users  *UserRepository
+	users  residentsUserRepository
 	houses func() repositories.THouses
 
 	upperMenu tele.Btn
@@ -26,7 +26,11 @@ type ResidentsChatter struct {
 	denyContact           tele.Btn
 }
 
-func NewResidentsChatter(users *UserRepository, houses func() repositories.THouses, upperMenu tele.Btn) (*ResidentsChatter, error) {
+type residentsUserRepository interface {
+	FindByAppartment(ctx context.Context, house string, appartment string) (*User, error)
+}
+
+func NewResidentsChatter(users residentsUserRepository, houses func() repositories.THouses, upperMenu tele.Btn) (*ResidentsChatter, error) {
 	defer Trace("NewResidentsChatter")()
 	markup := &tele.ReplyMarkup{}
 	return &ResidentsChatter{

@@ -27,14 +27,28 @@ type tBot struct {
 	bot *tele.Bot
 }
 
-func NewBot(log *zap.Logger, userRepository *UserRepository, houses func() repositories.THouses, groupChats func() repositories.TGroupChats) (*tBot, error) {
+func NewBot(log *zap.Logger, userRepository botUserRepository, houses func() repositories.THouses, groupChats func() repositories.TGroupChats) (*tBot, error) {
 	var b tBot
 	rand.Seed(time.Now().UnixMicro())
 	b.Init(log, userRepository, houses, groupChats)
 	return &b, nil
 }
 
-func (b *tBot) Init(log *zap.Logger, userRepository *UserRepository, houses func() repositories.THouses, groupChats func() repositories.TGroupChats) {
+type botUserRepository interface {
+	IsAdmin(ctx context.Context, userID int64) bool
+	UpsertUsername(ctx context.Context, userID int64, username string)
+	IsResident(ctx context.Context, userID int64) bool
+	GetById(ctx context.Context, userID int64) (*User, error)
+	StartRegistration(ctx context.Context, userID int64, UpdateID int64, houseNumber string, apartment string) (approveCode string, err error)
+	ConfirmRegistration(ctx context.Context, userID int64, event confirmRegistrationEvent) error
+	FailRegistration(ctx context.Context, userID int64, event failRegistrationEvent) error
+
+	RegisterCarLicensePlate(ctx context.Context, userID int64, event registerCarLicensePlateEvent) error
+
+	FindByAppartment(ctx context.Context, house string, appartment string) (*User, error)
+}
+
+func (b *tBot) Init(log *zap.Logger, userRepository botUserRepository, houses func() repositories.THouses, groupChats func() repositories.TGroupChats) {
 	defer Trace("botInit")()
 	var err error
 	telegramToken := os.Getenv("TELEGRAM_TOKEN")
@@ -327,6 +341,7 @@ func (b *tBot) Init(log *zap.Logger, userRepository *UserRepository, houses func
 		if approveToken.UserID != ctx.Sender().ID {
 			return ctx.EditOrReply("Этот код регистрации для другого пользователя. Перепутали телефон?", helpMenuMarkup())
 		}
+
 		user, err := userRepository.GetById(stdctx, ctx.Sender().ID)
 		if err != nil {
 			return err

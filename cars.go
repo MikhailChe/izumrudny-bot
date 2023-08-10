@@ -17,14 +17,18 @@ type carUserSearcher interface {
 }
 
 type carsHandler struct {
-	users *UserRepository
+	users carsUserRepository
 
 	upperMenu *tele.Btn
 
 	confirmPlateMenu *tele.Btn
 }
 
-func NewCarsHandller(users *UserRepository, upperMenu *tele.Btn) *carsHandler {
+type carsUserRepository interface {
+	RegisterCarLicensePlate(ctx context.Context, userID int64, event registerCarLicensePlateEvent) error
+}
+
+func NewCarsHandller(users carsUserRepository, upperMenu *tele.Btn) *carsHandler {
 	markup := &tele.ReplyMarkup{}
 	confirmPlateBtn := markup.Data("✅ Готово", "confirmlicenseplate") // для хранения unique
 	return &carsHandler{users: users, upperMenu: upperMenu, confirmPlateMenu: &confirmPlateBtn}

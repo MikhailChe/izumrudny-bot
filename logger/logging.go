@@ -20,3 +20,7 @@ func New() (*zap.Logger, error) {
 	}
 	return log, nil
 }
+
+func ForTests() (*zap.Logger, error) {
+	return zap.NewDevelopment()
+}
