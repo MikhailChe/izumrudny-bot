@@ -1,13 +1,12 @@
-package main
+package bot
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"mikhailche/botcomod/tracer"
 	"reflect"
 	"time"
-
-	. "mikhailche/botcomod/tracer"
 
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table/types"
@@ -26,7 +25,7 @@ type startRegistrationEvent struct {
 }
 
 func (e *startRegistrationEvent) Apply(u *User) {
-	defer Trace("startRegistrationEvent::Apply")()
+	defer tracer.Trace("startRegistrationEvent::Apply")()
 	u.Registration = &tRegistration{
 		Events: tRegistrationEvents{Start: e},
 	}
@@ -38,7 +37,7 @@ type confirmRegistrationEvent struct {
 }
 
 func (e *confirmRegistrationEvent) Apply(u *User) {
-	defer Trace("confirmRegistrationEvent::Apply")()
+	defer tracer.Trace("confirmRegistrationEvent::Apply")()
 	u.Apartments = append(u.Apartments, Apartment{
 		HouseNumber:     u.Registration.Events.Start.HouseNumber,
 		ApartmentNumber: u.Registration.Events.Start.Apartment,
@@ -54,7 +53,7 @@ type failRegistrationEvent struct {
 }
 
 func (e *failRegistrationEvent) Apply(u *User) {
-	defer Trace("failRegistrationEvent::Apply")()
+	defer tracer.Trace("failRegistrationEvent::Apply")()
 	u.Registration = nil
 }
 
@@ -64,7 +63,7 @@ type registerCarLicensePlateEvent struct {
 }
 
 func (e *registerCarLicensePlateEvent) Apply(u *User) {
-	defer Trace("registerCarLicensePlateEvent::Apply")()
+	defer tracer.Trace("registerCarLicensePlateEvent::Apply")()
 	u.Cars = append(u.Cars, Car{LicensePlate: e.LicensePlate})
 }
 
@@ -76,7 +75,7 @@ var KNOWN_USER_EVENT_TYPES = [...]UserEvent{
 }
 
 func SelectType(typeName string) UserEvent {
-	defer Trace("SelectType")()
+	defer tracer.Trace("SelectType")()
 	for _, t := range KNOWN_USER_EVENT_TYPES {
 		if fmt.Sprintf("%T", t) == typeName {
 			return reflect.New(reflect.TypeOf(t).Elem()).Interface().(UserEvent)
@@ -86,7 +85,7 @@ func SelectType(typeName string) UserEvent {
 }
 
 func (r *UserRepository) LogEvent(ctx context.Context, userID int64, event UserEvent) error {
-	defer Trace("UserRepository::LogEvent")()
+	defer tracer.Trace("UserRepository::LogEvent")()
 	now := time.Now()
 	eventBytes, err := json.Marshal(event)
 	if err != nil {

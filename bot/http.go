@@ -1,14 +1,14 @@
-package main
+package bot
 
 import (
 	"net/http"
 	"strings"
 
-	. "mikhailche/botcomod/tracer"
+	tracer "mikhailche/botcomod/tracer"
 )
 
 func TracedHttpClient(botToken string) *http.Client {
-	defer Trace("TracedHttpClient")()
+	defer tracer.Trace("TracedHttpClient")()
 	client := http.Client{
 		Transport: TracedRoundTripper(botToken),
 	}
@@ -26,7 +26,7 @@ func TracedRoundTripper(botToken string) roundTripperFunc {
 	return func(r *http.Request) (*http.Response, error) {
 		url := r.URL.String()
 		url = strings.ReplaceAll(url, botToken, "##")
-		defer Trace("HTTP::" + url)()
+		defer tracer.Trace("HTTP::" + url)()
 		return http.DefaultTransport.RoundTrip(r)
 	}
 }

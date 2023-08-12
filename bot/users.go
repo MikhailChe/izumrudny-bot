@@ -1,4 +1,4 @@
-package main
+package bot
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"math/rand"
 	"time"
 
-	. "mikhailche/botcomod/tracer"
+	"mikhailche/botcomod/tracer"
 
 	"github.com/ydb-platform/ydb-go-sdk/v3"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
@@ -31,7 +31,7 @@ type Apartment struct {
 type UserApartments []Apartment
 
 func (a *UserApartments) UnmarshalJSON(bb []byte) error {
-	defer Trace("UserApartments::UnmarshalJSON")()
+	defer tracer.Trace("UserApartments::UnmarshalJSON")()
 	if len(bb) == 0 {
 		return nil
 	}
@@ -46,7 +46,7 @@ func (a *UserApartments) UnmarshalJSON(bb []byte) error {
 type Cars []Car
 
 func (c *Cars) UnmarshalJSON(bb []byte) error {
-	defer Trace("Cars::UnmarshalJSON")()
+	defer tracer.Trace("Cars::UnmarshalJSON")()
 	if len(bb) == 0 {
 		return nil
 	}
@@ -77,7 +77,7 @@ type User struct {
 }
 
 func (u *User) Scan(res result.Result) error {
-	defer Trace("User::Scan")()
+	defer tracer.Trace("User::Scan")()
 	return res.ScanNamed(
 		named.Required("id", &u.ID),
 		named.OptionalWithDefault("appartments", &u.Apartments),
@@ -96,7 +96,7 @@ type UserEventRecord struct {
 }
 
 func (u *UserEventRecord) Scan(res result.Result) error {
-	defer Trace("UserEventRecord::Scan")()
+	defer tracer.Trace("UserEventRecord::Scan")()
 	var eventBytes []byte
 	if err := res.ScanNamed(
 		named.OptionalWithDefault("user", &u.User),
@@ -124,15 +124,15 @@ type UserRepository struct {
 }
 
 func NewUserRepository(ydb *ydb.Driver, log *zap.Logger) (*UserRepository, error) {
-	defer Trace("NewUserRepository")()
+	defer tracer.Trace("NewUserRepository")()
 	return &UserRepository{DB: ydb, log: log}, nil
 }
 
 func (r *UserRepository) GetById(ctx context.Context, userID int64) (*User, error) {
-	defer Trace("UserRepository::GetById")()
+	defer tracer.Trace("UserRepository::GetById")()
 	var user User
 	if err := (*r.DB).Table().Do(ctx, func(ctx context.Context, s table.Session) error {
-		defer Trace("UserRepository::GetById::Do")()
+		defer tracer.Trace("UserRepository::GetById::Do")()
 		_, res, err := s.Execute(ctx, table.DefaultTxControl(),
 			"DECLARE $id AS Int64;"+
 				"SELECT `id`, `appartments`, `cars`, `is_approved_resident`, `username` "+
@@ -148,7 +148,7 @@ func (r *UserRepository) GetById(ctx context.Context, userID int64) (*User, erro
 		if err != nil {
 			return fmt.Errorf("select user, user_event [%d]: %w", userID, err)
 		}
-		defer Trace("UserRepository::GetById::DoUser")()
+		defer tracer.Trace("UserRepository::GetById::DoUser")()
 		defer res.Close()
 		if !res.NextResultSet(ctx) {
 			return fmt.Errorf("не нашел result set для пользователя")
@@ -159,7 +159,7 @@ func (r *UserRepository) GetById(ctx context.Context, userID int64) (*User, erro
 		if err := user.Scan(res); err != nil {
 			return fmt.Errorf("скан пользователя %v: %w", res, err)
 		}
-		defer Trace("UserRepository::GetById::DoEvents")()
+		defer tracer.Trace("UserRepository::GetById::DoEvents")()
 		if !res.NextResultSet(ctx) {
 			return fmt.Errorf("не нашел result set для событий пользователя")
 		}
@@ -183,7 +183,7 @@ func (r *UserRepository) GetById(ctx context.Context, userID int64) (*User, erro
 var ErrNotFound = fmt.Errorf("not found")
 
 func (r *UserRepository) FindByAppartment(ctx context.Context, house string, appartment string) (*User, error) {
-	defer Trace("UserRepository::FindByAppartment")()
+	defer tracer.Trace("UserRepository::FindByAppartment")()
 	var userIDs []int64
 	if err := (*r.DB).Table().Do(ctx, func(ctx context.Context, s table.Session) error {
 		query := "SELECT `id` FROM `user`;"
@@ -220,9 +220,9 @@ func (r *UserRepository) FindByAppartment(ctx context.Context, house string, app
 }
 
 func (r *UserRepository) UpsertUsername(ctx context.Context, userID int64, username string) {
-	defer Trace("UserRepository::UpsertUsername")()
+	defer tracer.Trace("UserRepository::UpsertUsername")()
 	if err := (*r.DB).Table().Do(ctx, func(ctx context.Context, s table.Session) error {
-		defer Trace("Do Upsert user")()
+		defer tracer.Trace("Do Upsert user")()
 		_, _, err := s.Execute(ctx,
 			table.DefaultTxControl(),
 			"DECLARE $id AS Int64; "+
@@ -245,7 +245,7 @@ func (r *UserRepository) UpsertUsername(ctx context.Context, userID int64, usern
 }
 
 func (r *UserRepository) IsResident(ctx context.Context, userID int64) bool {
-	defer Trace("UserRepository::IsResident")()
+	defer tracer.Trace("UserRepository::IsResident")()
 	user, err := r.GetById(ctx, userID)
 	if err != nil {
 		r.log.Error("Проблема определения резидентности", zap.Error(err))
@@ -255,12 +255,12 @@ func (r *UserRepository) IsResident(ctx context.Context, userID int64) bool {
 }
 
 func (r *UserRepository) IsAdmin(ctx context.Context, userID int64) bool {
-	defer Trace("UserRepository::IsAdmin")()
+	defer tracer.Trace("UserRepository::IsAdmin")()
 	return userID == 257582730
 }
 
 func GenerateApproveCode(length int) string {
-	defer Trace("GenerateApproveCode")()
+	defer tracer.Trace("GenerateApproveCode")()
 	var alphabet []rune = []rune("123456789ABCEHKMOPTX")
 	var code []rune
 	for i := 0; i < length; i++ {
@@ -270,7 +270,7 @@ func GenerateApproveCode(length int) string {
 }
 
 func (r *UserRepository) StartRegistration(ctx context.Context, userID int64, updateID int64, houseNumber string, appartment string) (string, error) {
-	defer Trace("UserRepository::StartRegistration")()
+	defer tracer.Trace("UserRepository::StartRegistration")()
 	const CODE_LENGTH = 5
 	approveCode := GenerateApproveCode(CODE_LENGTH)
 	var invalidCodes []string
@@ -284,7 +284,7 @@ func (r *UserRepository) StartRegistration(ctx context.Context, userID int64, up
 }
 
 func (r *UserRepository) ConfirmRegistration(ctx context.Context, userID int64, event confirmRegistrationEvent) error {
-	defer Trace("UserRepository::ConfirmRegistration")()
+	defer tracer.Trace("UserRepository::ConfirmRegistration")()
 	if err := r.LogEvent(ctx, userID, &event); err != nil {
 		return fmt.Errorf("подтверждение регистрации: %w", err)
 	}
@@ -292,7 +292,7 @@ func (r *UserRepository) ConfirmRegistration(ctx context.Context, userID int64, 
 }
 
 func (r *UserRepository) FailRegistration(ctx context.Context, userID int64, event failRegistrationEvent) error {
-	defer Trace("UserRepository::FailRegistration")()
+	defer tracer.Trace("UserRepository::FailRegistration")()
 	if err := r.LogEvent(ctx, userID, &event); err != nil {
 		return fmt.Errorf("проваленная регистрация: %w", err)
 	}
@@ -300,7 +300,7 @@ func (r *UserRepository) FailRegistration(ctx context.Context, userID int64, eve
 }
 
 func (r *UserRepository) RegisterCarLicensePlate(ctx context.Context, userID int64, event registerCarLicensePlateEvent) error {
-	defer Trace("UserRepository::RegisterCarLicensePlate")()
+	defer tracer.Trace("UserRepository::RegisterCarLicensePlate")()
 	if err := r.LogEvent(ctx, userID, &event); err != nil {
 		return fmt.Errorf("провалена регистрация авто: %w", err)
 	}

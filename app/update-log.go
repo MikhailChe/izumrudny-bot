@@ -1,11 +1,11 @@
-package main
+package app
 
 import (
 	"context"
 	"fmt"
 	"time"
 
-	. "mikhailche/botcomod/tracer"
+	"mikhailche/botcomod/tracer"
 
 	"github.com/ydb-platform/ydb-go-sdk/v3"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
@@ -30,12 +30,10 @@ func newUpdateLogger(db *ydb.Driver, logger *zap.Logger) *UpdateLogger {
 	return upLogger
 }
 
-func (l *UpdateLogger) logUpdate(ctx context.Context, upd map[string]any, rawUpdate string) {
-	defer Trace("logUpdate")()
+func (l *UpdateLogger) LogUpdate(ctx context.Context, upd map[string]any, rawUpdate string) {
+	defer tracer.Trace("logUpdate")()
 
 	l.log.Info("Обновление от телеги", zap.Any("update", upd))
-	ctx, cancel := context.WithTimeout(ctx, time.Second)
-	defer cancel()
 	select {
 	case l.entries <- YDBUpdateLogEntry{(uint64)(upd["update_id"].(float64)), rawUpdate}:
 		break
@@ -50,7 +48,7 @@ type tRetryCount int8
 const times tRetryCount = 1
 
 func withRetry(f func() error, retryCount tRetryCount, retryDelay time.Duration) error {
-	defer Trace("withRetry")()
+	defer tracer.Trace("withRetry")()
 	var allErrors []error
 	for ; retryCount > 0; retryCount-- {
 		err := f()
@@ -77,9 +75,9 @@ func (l *UpdateLogger) runYDBWorker() {
 }
 
 func (l *UpdateLogger) ydbLogUpdateNow(ctx context.Context, ID uint64, update string) error {
-	defer Trace("LogUpdate")()
+	defer tracer.Trace("LogUpdate")()
 	return (*l.db).Table().Do(ctx, func(ctx context.Context, s table.Session) error {
-		defer Trace("Do upsert updates-log")()
+		defer tracer.Trace("Do upsert updates-log")()
 		_, result, err := s.Execute(ctx,
 			table.DefaultTxControl(),
 			"DECLARE $timestamp AS Timestamp; "+

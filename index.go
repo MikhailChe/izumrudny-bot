@@ -4,7 +4,8 @@ import (
 	"context"
 	"encoding/json"
 
-	. "mikhailche/botcomod/tracer"
+	"mikhailche/botcomod/app"
+	"mikhailche/botcomod/tracer"
 
 	"go.uber.org/zap"
 	tele "gopkg.in/telebot.v3"
@@ -22,32 +23,32 @@ type LambdaRequest struct {
 }
 
 func Handler(ctx context.Context, body []byte) (*LambdaResponse, error) {
-	defer Trace("Handler")()
-	app := APP()
+	defer tracer.Trace("Handler")()
+	app := app.APP()
 	defer func() {
 		if r := recover(); r != nil {
-			app.log.WithOptions(zap.AddCallerSkip(3)).Error("Паника в верхнем уровне", zap.Any("panicObj", r))
+			app.Log.WithOptions(zap.AddCallerSkip(3)).Error("Паника в верхнем уровне", zap.Any("panicObj", r))
 		}
 	}()
 	var request LambdaRequest
 	if err := json.Unmarshal(body, &request); err != nil {
-		app.log.Error("Не получилось распарсить запрос", zap.Error(err))
+		app.Log.Error("Не получилось распарсить запрос", zap.Error(err))
 	}
 	var updateMap map[string]any
 	_ = json.Unmarshal([]byte(request.Body), &updateMap)
-	app.updateLogger.logUpdate(ctx, updateMap, request.Body)
+	app.UpdateLogger.LogUpdate(ctx, updateMap, request.Body)
 
 	var update tele.Update
 	if err := json.Unmarshal([]byte(request.Body), &update); err != nil {
-		app.log.Error("Запросец", zap.Error(err))
+		app.Log.Error("Запросец", zap.Error(err))
 	}
-	if app.bot == nil {
+	if app.Bot == nil {
 		panic("nil app.bot")
 	}
-	if app.bot.bot == nil {
+	if app.Bot.Bot == nil {
 		panic("nil app.bot.bot")
 	}
-	app.bot.bot.ProcessUpdate(update)
+	app.Bot.Bot.ProcessUpdate(update)
 	return &LambdaResponse{
 		StatusCode: 200,
 		Body:       "OK",

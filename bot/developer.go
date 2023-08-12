@@ -1,9 +1,9 @@
-package main
+package bot
 
 import (
 	"fmt"
 
-	. "mikhailche/botcomod/tracer"
+	"mikhailche/botcomod/tracer"
 
 	"go.uber.org/zap"
 	tele "gopkg.in/telebot.v3"
@@ -13,7 +13,7 @@ const developerID = 257582730
 
 func forwardToDeveloper(log *zap.Logger) func(ctx tele.Context) error {
 	return func(ctx tele.Context) error {
-		defer Trace("forwardToDeveloper")()
+		defer tracer.Trace("forwardToDeveloper")()
 		if ctx.Chat().Type != tele.ChatPrivate {
 			return nil
 		}
@@ -26,7 +26,7 @@ func forwardToDeveloper(log *zap.Logger) func(ctx tele.Context) error {
 }
 
 func doForwardToDeveloper(ctx tele.Context) error {
-	defer Trace("doForwardToDeveloper")()
+	defer tracer.Trace("doForwardToDeveloper")()
 	var chat = ctx.Chat()
 	if _, err := ctx.Bot().Send(&tele.Chat{ID: developerID}, fmt.Sprintf("Сообщение от клиента [%v]: %v %v @%v", chat.ID, chat.FirstName, chat.LastName, chat.Username)); err != nil {
 		return fmt.Errorf("форвардинг разработчику: %w", err)
@@ -35,7 +35,7 @@ func doForwardToDeveloper(ctx tele.Context) error {
 }
 
 func sendToDeveloper(ctx tele.Context, log *zap.Logger, message string, opts ...any) error {
-	defer Trace("sendToDeveloper")()
+	defer tracer.Trace("sendToDeveloper")()
 	log.Named("сообщения для разработчиков").Info(message, zap.Any("opts", opts))
 	if _, err := ctx.Bot().Send(&tele.Chat{ID: developerID}, message, opts...); err != nil {
 		return fmt.Errorf("сообщение разработчику %v: %w", message, err)

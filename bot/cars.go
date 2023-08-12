@@ -1,4 +1,4 @@
-package main
+package bot
 
 import (
 	"context"
@@ -6,15 +6,6 @@ import (
 
 	tele "gopkg.in/telebot.v3"
 )
-
-type carRegistrator interface {
-	RegisterCarRequest()
-	ConfirmCarRegistration()
-}
-
-type carUserSearcher interface {
-	GetUserByCar(licensePlate string)
-}
 
 type carsHandler struct {
 	users carsUserRepository
@@ -88,14 +79,14 @@ func (c *carsHandler) HandleAddCar(ctx tele.Context) error {
 	var rows []tele.Row
 	if needLetter(currentPlate) {
 		var letterButtons []tele.Btn
-		for _, letter := range []rune("ABCEHKMOPTXY") {
+		for _, letter := range "ABCEHKMOPTXY" {
 			letterButtons = append(letterButtons, markup.Data(string(letter), ctx.Callback().Unique, currentPlate+string(letter)))
 		}
 		rows = append(rows, markup.Split(4, letterButtons)...)
 	}
 	if needDigit(currentPlate) {
 		var digitButtons []tele.Btn
-		for _, letter := range []rune("7894561230") {
+		for _, letter := range "7894561230" {
 			digitButtons = append(digitButtons, markup.Data(string(letter), ctx.Callback().Unique, currentPlate+string(letter)))
 		}
 		rows = append(rows, markup.Split(3, digitButtons)...)
@@ -129,5 +120,5 @@ func (c *carsHandler) ConfirmPlateHandler(ctx tele.Context) error {
 	}
 	markup := &tele.ReplyMarkup{}
 	markup.Inline(markup.Row(*c.upperMenu))
-	return ctx.EditOrReply(fmt.Sprintf(`Добавили ваш номер автомобиля в базу. Теперь с вами смогут связаться по нему.`))
+	return ctx.EditOrReply(`Добавили ваш номер автомобиля в базу. Теперь с вами смогут связаться по нему.`)
 }

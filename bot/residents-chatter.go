@@ -1,4 +1,4 @@
-package main
+package bot
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"strconv"
 
 	"mikhailche/botcomod/repositories"
-	. "mikhailche/botcomod/tracer"
+	"mikhailche/botcomod/tracer"
 
 	tele "gopkg.in/telebot.v3"
 )
@@ -31,7 +31,7 @@ type residentsUserRepository interface {
 }
 
 func NewResidentsChatter(users residentsUserRepository, houses func() repositories.THouses, upperMenu tele.Btn) (*ResidentsChatter, error) {
-	defer Trace("NewResidentsChatter")()
+	defer tracer.Trace("NewResidentsChatter")()
 	markup := &tele.ReplyMarkup{}
 	return &ResidentsChatter{
 		users:                 users,
@@ -52,7 +52,7 @@ type HandleRegistrator interface {
 }
 
 func (r *ResidentsChatter) RegisterBotsHandlers(bot HandleRegistrator) {
-	defer Trace("ResidentsChatter::RegisterBotsHandlers")()
+	defer tracer.Trace("ResidentsChatter::RegisterBotsHandlers")()
 	bot.Handle(&r.houseIsChosen, r.HandleHouseIsChosen)
 	bot.Handle(&r.appartmentRangeChosen, r.HandleAppartmentRangeChosen)
 	bot.Handle(&r.appartmentChosen, r.HandleAppartmentChosen)
@@ -62,7 +62,7 @@ func (r *ResidentsChatter) RegisterBotsHandlers(bot HandleRegistrator) {
 }
 
 func (r *ResidentsChatter) HandleChatWithResident(ctx tele.Context) error {
-	defer Trace("ResidentsChatter::HandleChatWithResident")()
+	defer tracer.Trace("ResidentsChatter::HandleChatWithResident")()
 	markup := ctx.Bot().NewMarkup()
 	var rows []tele.Row
 	var buttons []tele.Btn
@@ -89,7 +89,7 @@ func (r *ResidentsChatter) HandleChatWithResident(ctx tele.Context) error {
 }
 
 func (r *ResidentsChatter) houseFromContext(number string) repositories.THouse {
-	defer Trace("houseFromContext")()
+	defer tracer.Trace("houseFromContext")()
 	for _, house := range r.houses() {
 		if house.Number == number {
 			return house
@@ -99,7 +99,7 @@ func (r *ResidentsChatter) houseFromContext(number string) repositories.THouse {
 }
 
 func (r *ResidentsChatter) HandleHouseIsChosen(ctx tele.Context) error {
-	defer Trace("ResidentsChatter::ResidentsChatter")()
+	defer tracer.Trace("ResidentsChatter::ResidentsChatter")()
 	var house repositories.THouse = r.houseFromContext(ctx.Args()[0])
 	markup := &tele.ReplyMarkup{}
 	var rows []tele.Row
@@ -124,7 +124,7 @@ func (r *ResidentsChatter) HandleHouseIsChosen(ctx tele.Context) error {
 }
 
 func (r *ResidentsChatter) HandleAppartmentRangeChosen(ctx tele.Context) error {
-	defer Trace("ResidentsChatter::HandleAppartmentRangeChosen")()
+	defer tracer.Trace("ResidentsChatter::HandleAppartmentRangeChosen")()
 	var house repositories.THouse = r.houseFromContext(ctx.Args()[0])
 	appartmentRangeStart, err := strconv.Atoi(ctx.Args()[1])
 	if err != nil {
@@ -152,7 +152,7 @@ func (r *ResidentsChatter) HandleAppartmentRangeChosen(ctx tele.Context) error {
 }
 
 func (r *ResidentsChatter) HandleAppartmentChosen(ctx tele.Context) error {
-	defer Trace("ResidentsChatter::HandleAppartmentChosen")()
+	defer tracer.Trace("ResidentsChatter::HandleAppartmentChosen")()
 	var house repositories.THouse = r.houseFromContext(ctx.Args()[0])
 	appartment, err := strconv.Atoi(ctx.Args()[2])
 	if err != nil {
@@ -170,7 +170,7 @@ func (r *ResidentsChatter) HandleAppartmentChosen(ctx tele.Context) error {
 }
 
 func (r *ResidentsChatter) HandleChatRequestApproved(ctx tele.Context) error {
-	defer Trace("ResidentsChatter::HandleChatRequestApproved")()
+	defer tracer.Trace("ResidentsChatter::HandleChatRequestApproved")()
 	var house repositories.THouse = r.houseFromContext(ctx.Args()[0])
 	appartment, err := strconv.Atoi(ctx.Args()[2])
 	if err != nil {
@@ -215,7 +215,7 @@ func (r *ResidentsChatter) HandleChatRequestApproved(ctx tele.Context) error {
 }
 
 func (r *ResidentsChatter) HandleAllowContact(ctx tele.Context) error {
-	defer Trace("ResidentsChatter::HandleAllowContact")()
+	defer tracer.Trace("ResidentsChatter::HandleAllowContact")()
 	recepient, err := strconv.Atoi(ctx.Args()[0])
 	if err != nil {
 		return fmt.Errorf("парсинг ID получателя для разрешения контакта [%v]: %w",
@@ -244,7 +244,7 @@ func (r *ResidentsChatter) HandleAllowContact(ctx tele.Context) error {
 }
 
 func (r *ResidentsChatter) HandleDenyContact(ctx tele.Context) error {
-	defer Trace("ResidentsChatter::HandleDenyContact")()
+	defer tracer.Trace("ResidentsChatter::HandleDenyContact")()
 	recepient, err := strconv.Atoi(ctx.Args()[0])
 	if err != nil {
 		return fmt.Errorf("парсинг получателя для отказа в контакте: %w", err)

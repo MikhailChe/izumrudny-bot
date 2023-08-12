@@ -1,10 +1,10 @@
-package main
+package bot
 
 import (
 	"context"
 	"fmt"
 	"mikhailche/botcomod/repositories"
-	. "mikhailche/botcomod/tracer"
+	"mikhailche/botcomod/tracer"
 	"strconv"
 	"time"
 
@@ -123,7 +123,7 @@ func (r *telegramRegistrator) HandleMediaCreated(user *User, ctx tele.Context) e
 }
 
 func (r *telegramRegistrator) HandleStartRegistration(ctx tele.Context) error {
-	defer Trace("registerBtn")()
+	defer tracer.Trace("registerBtn")()
 	stdctx := context.Background()
 	user, err := r.userRepository.GetById(stdctx, ctx.Sender().ID)
 	if err != nil {
@@ -205,7 +205,7 @@ func (r *telegramRegistrator) HandleStartRegistration(ctx tele.Context) error {
 	if len(data) == 3 {
 		confirmMenu := &tele.ReplyMarkup{}
 		confirmMenu.Inline(
-			confirmMenu.Row(confirmMenu.Data("✅ Да, всё верно", r.EntryPoint().Unique, house.Number, fmt.Sprint(appartmentRangeMin), fmt.Sprint(appartmentNumber), fmt.Sprint("OK"))),
+			confirmMenu.Row(confirmMenu.Data("✅ Да, всё верно", r.EntryPoint().Unique, house.Number, fmt.Sprint(appartmentRangeMin), fmt.Sprint(appartmentNumber), "OK")),
 			confirmMenu.Row(confirmMenu.Data("❌ Неверная квартира", r.EntryPoint().Unique, house.Number)),
 			confirmMenu.Row(confirmMenu.Data("❌ Неверный номер дома", r.EntryPoint().Unique)),
 			confirmMenu.Row(r.backBtn),
@@ -236,7 +236,7 @@ func (r *telegramRegistrator) HandleStartRegistration(ctx tele.Context) error {
 }
 
 func sendToRegistrationGroup(ctx tele.Context, log *zap.Logger, message string, args []any, opts ...any) error {
-	defer Trace("sendToRegistrationGroup")()
+	defer tracer.Trace("sendToRegistrationGroup")()
 	log.Named("регистратор").Info(message, zap.Any("args", args))
 	if _, err := ctx.Bot().Send(&tele.Chat{ID: registrationChatID}, fmt.Sprintf(message, args...), opts...); err != nil {
 		return fmt.Errorf("сообщение регистратору %v: %w", message, err)

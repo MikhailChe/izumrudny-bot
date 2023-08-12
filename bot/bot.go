@@ -1,4 +1,4 @@
-package main
+package bot
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 
 	"mikhailche/botcomod/handlers"
 	"mikhailche/botcomod/repositories"
-	. "mikhailche/botcomod/tracer"
+	"mikhailche/botcomod/tracer"
 
 	"go.uber.org/zap"
 	tele "gopkg.in/telebot.v3"
@@ -23,12 +23,12 @@ const botDescription = `Я бот микрорайона Изумрудный Б
 Меня разрабатывают сами жители района на добровольных началах. Если есть предложения - напишите их мне, а я передам разработчикам.
 Зарегистрированные резиденты в скором времени смогут искать друг друга по номеру авто или квартиры.`
 
-type tBot struct {
-	bot *tele.Bot
+type TBot struct {
+	Bot *tele.Bot
 }
 
-func NewBot(log *zap.Logger, userRepository botUserRepository, houses func() repositories.THouses, groupChats func() repositories.TGroupChats) (*tBot, error) {
-	var b tBot
+func NewBot(log *zap.Logger, userRepository botUserRepository, houses func() repositories.THouses, groupChats func() repositories.TGroupChats) (*TBot, error) {
+	var b TBot
 	rand.Seed(time.Now().UnixMicro())
 	b.Init(log, userRepository, houses, groupChats)
 	return &b, nil
@@ -48,8 +48,8 @@ type botUserRepository interface {
 	FindByAppartment(ctx context.Context, house string, appartment string) (*User, error)
 }
 
-func (b *tBot) Init(log *zap.Logger, userRepository botUserRepository, houses func() repositories.THouses, groupChats func() repositories.TGroupChats) {
-	defer Trace("botInit")()
+func (b *TBot) Init(log *zap.Logger, userRepository botUserRepository, houses func() repositories.THouses, groupChats func() repositories.TGroupChats) {
+	defer tracer.Trace("botInit")()
 	var err error
 	telegramToken := os.Getenv("TELEGRAM_TOKEN")
 	pref := tele.Settings{
@@ -58,7 +58,7 @@ func (b *tBot) Init(log *zap.Logger, userRepository botUserRepository, houses fu
 		Verbose:     false,
 		Offline:     true,
 		OnError: func(err error, c tele.Context) {
-			defer Trace("Telebot::OnError")()
+			defer tracer.Trace("Telebot::OnError")()
 			if c != nil {
 				log.Error("Ошибка внутри бота", zap.Any("update", c.Update()), zap.Error(err), zap.Reflect("errorStruct", err), zap.String("errorType", fmt.Sprintf("%T", err)))
 			} else {
@@ -74,7 +74,7 @@ func (b *tBot) Init(log *zap.Logger, userRepository botUserRepository, houses fu
 		Client: TracedHttpClient(telegramToken),
 	}
 
-	finishTraceNewBot := Trace("NewBot")
+	finishTraceNewBot := tracer.Trace("NewBot")
 	bot, err := tele.NewBot(pref)
 	finishTraceNewBot()
 	if err != nil {
@@ -82,20 +82,20 @@ func (b *tBot) Init(log *zap.Logger, userRepository botUserRepository, houses fu
 		return
 	}
 	bot.Me.Username = "IzumrudnyBot" // It is not initialized in offline mode, but is needed for processing command in chat groups
-	b.bot = bot
+	b.Bot = bot
 
 	bot.Use(func(hf tele.HandlerFunc) tele.HandlerFunc {
 		return func(ctx tele.Context) error {
-			defer Trace("TraceMiddleware")()
+			defer tracer.Trace("TraceMiddleware")()
 			return hf(ctx)
 		}
 	})
 
 	bot.Use(func(hf tele.HandlerFunc) tele.HandlerFunc {
 		return func(ctx tele.Context) error {
-			defer Trace("RecoverMiddleware")()
+			defer tracer.Trace("RecoverMiddleware")()
 			defer func() {
-				defer Trace("RecoverMiddleware::defer")()
+				defer tracer.Trace("RecoverMiddleware::defer")()
 				if r := recover(); r != nil {
 					log.WithOptions(zap.AddCallerSkip(3)).Error("Паника", zap.Any("panicObj", r))
 					sendToDeveloper(ctx, log, fmt.Sprintf("Паника\n\n%v\n\n%#v", r, r))
@@ -107,7 +107,7 @@ func (b *tBot) Init(log *zap.Logger, userRepository botUserRepository, houses fu
 
 	bot.Use(func(hf tele.HandlerFunc) tele.HandlerFunc {
 		return func(ctx tele.Context) error {
-			defer Trace("UpsertUsername middleware")()
+			defer tracer.Trace("UpsertUsername middleware")()
 			userRepository.UpsertUsername(context.Background(), ctx.Sender().ID, ctx.Sender().Username)
 			return hf(ctx)
 		}
@@ -123,7 +123,7 @@ func (b *tBot) Init(log *zap.Logger, userRepository botUserRepository, houses fu
 	log.Info("Adding admin command controller")
 	handlers.AdminCommandController(bot.Group(), func(hf tele.HandlerFunc) tele.HandlerFunc {
 		return func(ctx tele.Context) error {
-			defer Trace("AdminCommandControllerAuth middleware")()
+			defer tracer.Trace("AdminCommandControllerAuth middleware")()
 			if userRepository.IsAdmin(context.Background(), ctx.Sender().ID) {
 				return hf(ctx)
 			}
@@ -145,7 +145,7 @@ func (b *tBot) Init(log *zap.Logger, userRepository botUserRepository, houses fu
 	// registerBtn := markup.Data("📒 Начать регистрацию", "registration")
 
 	helpMenuMarkup := func() *tele.ReplyMarkup {
-		defer Trace("helpMenuMarkup")()
+		defer tracer.Trace("helpMenuMarkup")()
 		var markup = bot.NewMarkup()
 		markup.Inline(
 			markup.Row(districtChatsBtn),
@@ -157,7 +157,7 @@ func (b *tBot) Init(log *zap.Logger, userRepository botUserRepository, houses fu
 	}
 
 	helpHandler := func(ctx tele.Context) error {
-		defer Trace("helpHandler")()
+		defer tracer.Trace("helpHandler")()
 		return ctx.EditOrSend(
 			"Привет. Я помогу сориентироваться в Изумрудном Бору.\nВы всегда можете вызвать это меню командой /help",
 			helpMenuMarkup(),
@@ -166,14 +166,8 @@ func (b *tBot) Init(log *zap.Logger, userRepository botUserRepository, houses fu
 	bot.Handle("/help", helpHandler)
 	bot.Handle(&helpMainMenuBtn, helpHandler)
 
-	type chatInvite struct {
-		Group string
-		Name  string
-		Link  string
-	}
-
 	chatsHandler := func(ctx tele.Context) error {
-		defer Trace("chatsHandler")()
+		defer tracer.Trace("chatsHandler")()
 		var markup = bot.NewMarkup()
 		var rows []tele.Row
 		var linkGroup []tele.Btn
@@ -210,7 +204,7 @@ func (b *tBot) Init(log *zap.Logger, userRepository botUserRepository, houses fu
 	bot.Handle("/chats", chatsHandler)
 
 	phonesHandler := func(ctx tele.Context) error {
-		defer Trace("phonesHandler")()
+		defer tracer.Trace("phonesHandler")()
 		markup := bot.NewMarkup()
 		markup.Inline(
 			markup.Row(helpMainMenuBtn),
@@ -232,7 +226,7 @@ func (b *tBot) Init(log *zap.Logger, userRepository botUserRepository, houses fu
 
 	var authMiddleware tele.MiddlewareFunc = func(next tele.HandlerFunc) tele.HandlerFunc {
 		return func(ctx tele.Context) error {
-			defer Trace("AuthMiddleware")()
+			defer tracer.Trace("AuthMiddleware")()
 			if userRepository.IsResident(context.Background(), ctx.Sender().ID) {
 				return next(ctx)
 			}
@@ -257,7 +251,7 @@ func (b *tBot) Init(log *zap.Logger, userRepository botUserRepository, houses fu
 	carsService.Register(bot)
 
 	getResidentsMarkup := func(ctx tele.Context) *tele.ReplyMarkup {
-		defer Trace("getResidentsMarkup")()
+		defer tracer.Trace("getResidentsMarkup")()
 		user, err := userRepository.GetById(context.Background(), ctx.Sender().ID)
 		if err != nil || user.Registration == nil {
 			residentsMenuMarkup := bot.NewMarkup()
@@ -302,7 +296,7 @@ func (b *tBot) Init(log *zap.Logger, userRepository botUserRepository, houses fu
 
 	/*
 		handleContinueRegistration := func(ctx tele.Context, stdctx context.Context, user *User) error {
-			defer Trace("handleContinueRegistration")()
+			defer tracer.Trace("handleContinueRegistration")()
 			if err != nil {
 				return fmt.Errorf("продолжение регистрации: %w", err)
 			}
@@ -350,7 +344,7 @@ func (b *tBot) Init(log *zap.Logger, userRepository botUserRepository, houses fu
 	}
 
 	bot.Handle("/start", func(ctx tele.Context) error {
-		defer Trace("/start")()
+		defer tracer.Trace("/start")()
 		if len(ctx.Args()) == 1 && len(ctx.Args()[0]) > 4 {
 			if err := handleMaybeRegistration(ctx, context.Background(), ctx.Args()[0]); err == nil {
 				return nil
@@ -362,7 +356,7 @@ func (b *tBot) Init(log *zap.Logger, userRepository botUserRepository, houses fu
 	})
 
 	bot.Handle("/whoami", func(ctx tele.Context) error {
-		defer Trace("/whoami")()
+		defer tracer.Trace("/whoami")()
 		userID := ctx.Sender().ID
 		if len(ctx.Args()) > 0 && len(ctx.Args()[0]) > 0 {
 			parsedUserID, err := strconv.Atoi(ctx.Args()[0])
@@ -372,7 +366,7 @@ func (b *tBot) Init(log *zap.Logger, userRepository botUserRepository, houses fu
 		}
 		user, err := userRepository.GetById(context.Background(), userID)
 		if err != nil {
-			return fmt.Errorf("Не могу достать пользователя: %w", err)
+			return fmt.Errorf("не могу достать пользователя: %w", err)
 		}
 		userRepository.IsResident(context.Background(), userID)
 		return ctx.EditOrReply(fmt.Sprintf("%v\n\n%#v\n\n%+v", *user, *user, *user))
@@ -382,19 +376,19 @@ func (b *tBot) Init(log *zap.Logger, userRepository botUserRepository, houses fu
 	authGroup.Use(authMiddleware)
 
 	residentsHandler := func(ctx tele.Context) error {
-		defer Trace("residentsHandler")()
+		defer tracer.Trace("residentsHandler")()
 		return ctx.EditOrSend("Немного полезностей для резидентов", getResidentsMarkup(ctx))
 	}
 	authGroup.Handle(&residentsBtn, residentsHandler)
 
 	intercomHandlers := func(ctx tele.Context) error {
-		defer Trace("intercomHandlers")()
+		defer tracer.Trace("intercomHandlers")()
 		return ctx.EditOrSend("Здесь будет актуальный код для прохода через домофон. Если вы знаете теукщий код - напишите его мне.", getResidentsMarkup(ctx))
 	}
 	authGroup.Handle(&intercomCodeBtn, intercomHandlers)
 
 	videoCamerasHandler := func(ctx tele.Context) error {
-		defer Trace("videoCamerasHandler")()
+		defer tracer.Trace("videoCamerasHandler")()
 		return ctx.EditOrSend(`
 <a href="https://vs.domru.ru">Площадка 108А</a>
 Логин: <code>ertel-wk-557</code>
@@ -418,7 +412,7 @@ func (b *tBot) Init(log *zap.Logger, userRepository botUserRepository, houses fu
 
 	residentsChatter.RegisterBotsHandlers(authGroup)
 	pmWithResidentsHandler := func(ctx tele.Context) error {
-		defer Trace("pmWithResidentsHandler")()
+		defer tracer.Trace("pmWithResidentsHandler")()
 		return residentsChatter.HandleChatWithResident(ctx)
 	}
 	authGroup.Handle("/connect", pmWithResidentsHandler)
@@ -477,7 +471,7 @@ func (b *tBot) Init(log *zap.Logger, userRepository botUserRepository, houses fu
 	})
 
 	bot.Handle("/status", func(ctx tele.Context) error {
-		defer Trace("/status")()
+		defer tracer.Trace("/status")()
 		// return ctx.EditOrSend("🟡 Проводятся технические работы на линии интернета оператора МТС")
 		return ctx.EditOrSend("🟢 Пока нет известных проблем")
 	})
@@ -499,7 +493,7 @@ func (b *tBot) Init(log *zap.Logger, userRepository botUserRepository, houses fu
 }
 
 func botInitHandleService(bot *tele.Bot) {
-	defer Trace("botInitHandleService")()
+	defer tracer.Trace("botInitHandleService")()
 	bot.Handle("/service", func(ctx tele.Context) error {
 		if err := bot.SetCommands([]tele.Command{
 			{Text: "help", Description: "Справка"},
