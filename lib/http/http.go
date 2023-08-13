@@ -1,10 +1,10 @@
-package bot
+package http
 
 import (
 	"net/http"
 	"strings"
 
-	tracer "mikhailche/botcomod/tracer"
+	"mikhailche/botcomod/tracer"
 )
 
 func TracedHttpClient(botToken string) *http.Client {

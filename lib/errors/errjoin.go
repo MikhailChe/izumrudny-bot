@@ -1,4 +1,4 @@
-package app
+package errors
 
 func Join(errs ...error) error {
 	n := 0

@@ -2,6 +2,7 @@ package bot
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"mikhailche/botcomod/handlers"
+	"mikhailche/botcomod/lib/http"
 	"mikhailche/botcomod/repositories"
 	"mikhailche/botcomod/tracer"
 
@@ -71,7 +73,7 @@ func (b *TBot) Init(log *zap.Logger, userRepository botUserRepository, houses fu
 				log.Error("Не смог логировать в телегу", zap.Error(err))
 			}
 		},
-		Client: TracedHttpClient(telegramToken),
+		Client: http.TracedHttpClient(telegramToken),
 	}
 
 	finishTraceNewBot := tracer.Trace("NewBot")
@@ -203,23 +205,7 @@ func (b *TBot) Init(log *zap.Logger, userRepository botUserRepository, houses fu
 	bot.Handle(&districtChatsBtn, chatsHandler)
 	bot.Handle("/chats", chatsHandler)
 
-	phonesHandler := func(ctx tele.Context) error {
-		defer tracer.Trace("phonesHandler")()
-		markup := bot.NewMarkup()
-		markup.Inline(
-			markup.Row(helpMainMenuBtn),
-		)
-
-		return ctx.EditOrSend(
-			"👮 Охрана  <b>+7-982-690-0793</b>\n"+
-				"🚨 Аварийно-диспетчерская служба <b>+7-343-317-0798</b>\n"+
-				"🧑‍💼👔 Управляющая компания <b>+7-343-283-0555</b>\n\n"+
-				"Если здесь не хватает какого-то важного номера телефона - напишите мне об этом",
-			tele.ModeHTML,
-			markup)
-	}
-	bot.Handle(&helpfulPhonesBtn, phonesHandler)
-	bot.Handle("/phones", phonesHandler)
+	handlers.PhonesController(bot, &helpMainMenuBtn, &helpfulPhonesBtn)
 
 	registrationService := newTelegramRegistrator(log, userRepository, houses, helpMainMenuBtn)
 	registrationService.Register(bot)
@@ -369,7 +355,9 @@ func (b *TBot) Init(log *zap.Logger, userRepository botUserRepository, houses fu
 			return fmt.Errorf("не могу достать пользователя: %w", err)
 		}
 		userRepository.IsResident(context.Background(), userID)
-		return ctx.EditOrReply(fmt.Sprintf("%v\n\n%#v\n\n%+v", *user, *user, *user))
+		userAsJson, _ := json.MarshalIndent(*user, "", "  ")
+		eventsAsJson, _ := json.MarshalIndent(user.Events, "", "  ")
+		return ctx.EditOrReply(fmt.Sprintf("%#v\n\n%v\n\n%v", *user, string(userAsJson), string(eventsAsJson)))
 	})
 
 	authGroup := bot.Group()

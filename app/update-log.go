@@ -2,8 +2,8 @@ package app
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"mikhailche/botcomod/lib/errors"
 	"time"
 
 	"mikhailche/botcomod/tracer"
