@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -57,7 +58,7 @@ func withRetry(f func() error, retryCount tRetryCount, retryDelay time.Duration)
 		}
 		allErrors = append(allErrors, err)
 	}
-	return Join(allErrors...)
+	return errors.Join(allErrors...)
 }
 
 func (l *UpdateLogger) runYDBWorker() {

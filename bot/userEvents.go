@@ -14,6 +14,7 @@ import (
 
 type UserEvent interface {
 	Apply(*User)
+	FQDN() string
 }
 
 type startRegistrationEvent struct {
@@ -29,6 +30,10 @@ func (e *startRegistrationEvent) Apply(u *User) {
 	u.Registration = &tRegistration{
 		Events: tRegistrationEvents{Start: e},
 	}
+}
+
+func (e *startRegistrationEvent) FQDN() string {
+	return "*bot.startRegistrationEvent"
 }
 
 type confirmRegistrationEvent struct {
@@ -47,6 +52,10 @@ func (e *confirmRegistrationEvent) Apply(u *User) {
 	u.Registration = nil
 }
 
+func (e *confirmRegistrationEvent) FQDN() string {
+	return "*bot.confirmRegistrationEvent"
+}
+
 type failRegistrationEvent struct {
 	UpdateID int64
 	WithCode string
@@ -55,6 +64,10 @@ type failRegistrationEvent struct {
 func (e *failRegistrationEvent) Apply(u *User) {
 	defer tracer.Trace("failRegistrationEvent::Apply")()
 	u.Registration = nil
+}
+
+func (e *failRegistrationEvent) FQDN() string {
+	return "*bot.failRegistrationEvent"
 }
 
 type registerCarLicensePlateEvent struct {
@@ -67,6 +80,10 @@ func (e *registerCarLicensePlateEvent) Apply(u *User) {
 	u.Cars = append(u.Cars, Car{LicensePlate: e.LicensePlate})
 }
 
+func (e *registerCarLicensePlateEvent) FQDN() string {
+	return "*bot.registerCarLicensePlateEvent"
+}
+
 var KNOWN_USER_EVENT_TYPES = [...]UserEvent{
 	((*startRegistrationEvent)(nil)),
 	((*confirmRegistrationEvent)(nil)),
@@ -77,7 +94,7 @@ var KNOWN_USER_EVENT_TYPES = [...]UserEvent{
 func SelectType(typeName string) UserEvent {
 	defer tracer.Trace("SelectType")()
 	for _, t := range KNOWN_USER_EVENT_TYPES {
-		if fmt.Sprintf("%T", t) == typeName {
+		if t.FQDN() == typeName {
 			return reflect.New(reflect.TypeOf(t).Elem()).Interface().(UserEvent)
 		}
 	}

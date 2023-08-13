@@ -2,13 +2,12 @@ package handlers
 
 import (
 	"fmt"
-
 	"mikhailche/botcomod/tracer"
 
 	tele "gopkg.in/telebot.v3"
 )
 
-func AdminCommandController(mux botMux, adminAuth tele.MiddlewareFunc) {
+func CarsController(mux botMux, adminAuth tele.MiddlewareFunc) {
 	mux.Use(adminAuth)
 	mux.Handle("/chatidlink", func(ctx tele.Context) error {
 		defer tracer.Trace("/chatidlink")()

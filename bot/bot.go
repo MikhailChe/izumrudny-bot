@@ -247,7 +247,7 @@ func (b *TBot) Init(log *zap.Logger, userRepository botUserRepository, houses fu
 		}
 	}
 
-	carsService := NewCarsHandller(userRepository, &helpMainMenuBtn)
+	carsService := NewCarsHandler(userRepository, &helpMainMenuBtn)
 	carsService.Register(bot)
 
 	getResidentsMarkup := func(ctx tele.Context) *tele.ReplyMarkup {
