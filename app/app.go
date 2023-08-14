@@ -48,7 +48,7 @@ func newApp() *app {
 	if err != nil {
 		log.Fatal("Ошибка инициализации YDB в приложении", zap.Error(err))
 	}
-	userRepository, err := bot.NewUserRepository(ydb, log)
+	userRepository, err := repositories.NewUserRepository(ydb, log)
 	if err != nil {
 		log.Fatal("Ошибка инициализации пользовательского репозитория", zap.Error(err))
 	}

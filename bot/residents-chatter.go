@@ -27,7 +27,7 @@ type ResidentsChatter struct {
 }
 
 type residentsUserRepository interface {
-	FindByAppartment(ctx context.Context, house string, appartment string) (*User, error)
+	FindByAppartment(ctx context.Context, house string, appartment string) (*repositories.User, error)
 }
 
 func NewResidentsChatter(users residentsUserRepository, houses func() repositories.THouses, upperMenu tele.Btn) (*ResidentsChatter, error) {
@@ -179,7 +179,7 @@ func (r *ResidentsChatter) HandleChatRequestApproved(ctx tele.Context) error {
 	markup := &tele.ReplyMarkup{}
 	markup.Inline(markup.Row(r.upperMenu))
 	user, err := r.users.FindByAppartment(context.Background(), house.Number, fmt.Sprint(appartment))
-	if err == ErrNotFound {
+	if err == repositories.ErrNotFound {
 		return fmt.Errorf(
 			"не нашел пользователя проживающего в [%v %d]: %w; %v",
 			house.Number, appartment, err,
@@ -211,7 +211,10 @@ func (r *ResidentsChatter) HandleChatRequestApproved(ctx tele.Context) error {
 		return fmt.Errorf("не отправил запрос на контакт [%d]: %w", user.ID, err)
 	}
 
-	return ctx.EditOrReply("Спасибо. Я отправил приглашение зарегистрированым резидентам этой квартиры. Если они согласятся пообщаться, то вы получите уведомление.", markup)
+	return ctx.EditOrReply(
+		"Спасибо. Я отправил приглашение зарегистрированым резидентам этой квартиры. Если они согласятся пообщаться, то вы получите уведомление.",
+		markup,
+	)
 }
 
 func (r *ResidentsChatter) HandleAllowContact(ctx tele.Context) error {

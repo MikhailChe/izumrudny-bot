@@ -1,4 +1,4 @@
-package bot
+package repositories
 
 import (
 	"context"
@@ -17,7 +17,7 @@ type UserEvent interface {
 	FQDN() string
 }
 
-type startRegistrationEvent struct {
+type StartRegistrationEvent struct {
 	UpdateID     int64
 	HouseNumber  string
 	Apartment    string `json:"Appartment"`
@@ -25,23 +25,23 @@ type startRegistrationEvent struct {
 	InvalidCodes []string
 }
 
-func (e *startRegistrationEvent) Apply(u *User) {
+func (e *StartRegistrationEvent) Apply(u *User) {
 	defer tracer.Trace("startRegistrationEvent::Apply")()
 	u.Registration = &tRegistration{
 		Events: tRegistrationEvents{Start: e},
 	}
 }
 
-func (e *startRegistrationEvent) FQDN() string {
+func (e *StartRegistrationEvent) FQDN() string {
 	return "*bot.startRegistrationEvent"
 }
 
-type confirmRegistrationEvent struct {
+type ConfirmRegistrationEvent struct {
 	UpdateID int64
 	WithCode string
 }
 
-func (e *confirmRegistrationEvent) Apply(u *User) {
+func (e *ConfirmRegistrationEvent) Apply(u *User) {
 	defer tracer.Trace("confirmRegistrationEvent::Apply")()
 	u.Apartments = append(u.Apartments, Apartment{
 		HouseNumber:     u.Registration.Events.Start.HouseNumber,
@@ -52,43 +52,43 @@ func (e *confirmRegistrationEvent) Apply(u *User) {
 	u.Registration = nil
 }
 
-func (e *confirmRegistrationEvent) FQDN() string {
+func (e *ConfirmRegistrationEvent) FQDN() string {
 	return "*bot.confirmRegistrationEvent"
 }
 
-type failRegistrationEvent struct {
+type FailRegistrationEvent struct {
 	UpdateID int64
 	WithCode string
 }
 
-func (e *failRegistrationEvent) Apply(u *User) {
+func (e *FailRegistrationEvent) Apply(u *User) {
 	defer tracer.Trace("failRegistrationEvent::Apply")()
 	u.Registration = nil
 }
 
-func (e *failRegistrationEvent) FQDN() string {
+func (e *FailRegistrationEvent) FQDN() string {
 	return "*bot.failRegistrationEvent"
 }
 
-type registerCarLicensePlateEvent struct {
+type RegisterCarLicensePlateEvent struct {
 	UpdateID     int64
 	LicensePlate string
 }
 
-func (e *registerCarLicensePlateEvent) Apply(u *User) {
+func (e *RegisterCarLicensePlateEvent) Apply(u *User) {
 	defer tracer.Trace("registerCarLicensePlateEvent::Apply")()
 	u.Cars = append(u.Cars, Car{LicensePlate: e.LicensePlate})
 }
 
-func (e *registerCarLicensePlateEvent) FQDN() string {
+func (e *RegisterCarLicensePlateEvent) FQDN() string {
 	return "*bot.registerCarLicensePlateEvent"
 }
 
 var KNOWN_USER_EVENT_TYPES = [...]UserEvent{
-	((*startRegistrationEvent)(nil)),
-	((*confirmRegistrationEvent)(nil)),
-	((*failRegistrationEvent)((nil))),
-	((*registerCarLicensePlateEvent)((nil))),
+	((*StartRegistrationEvent)(nil)),
+	((*ConfirmRegistrationEvent)(nil)),
+	((*FailRegistrationEvent)((nil))),
+	((*RegisterCarLicensePlateEvent)((nil))),
 }
 
 func SelectType(typeName string) UserEvent {

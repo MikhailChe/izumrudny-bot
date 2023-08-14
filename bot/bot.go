@@ -40,14 +40,14 @@ type botUserRepository interface {
 	IsAdmin(ctx context.Context, userID int64) bool
 	UpsertUsername(ctx context.Context, userID int64, username string)
 	IsResident(ctx context.Context, userID int64) bool
-	GetById(ctx context.Context, userID int64) (*User, error)
+	GetById(ctx context.Context, userID int64) (*repositories.User, error)
 	StartRegistration(ctx context.Context, userID int64, UpdateID int64, houseNumber string, apartment string) (approveCode string, err error)
-	ConfirmRegistration(ctx context.Context, userID int64, event confirmRegistrationEvent) error
-	FailRegistration(ctx context.Context, userID int64, event failRegistrationEvent) error
+	ConfirmRegistration(ctx context.Context, userID int64, event repositories.ConfirmRegistrationEvent) error
+	FailRegistration(ctx context.Context, userID int64, event repositories.FailRegistrationEvent) error
 
-	RegisterCarLicensePlate(ctx context.Context, userID int64, event registerCarLicensePlateEvent) error
+	RegisterCarLicensePlate(ctx context.Context, userID int64, event repositories.RegisterCarLicensePlateEvent) error
 
-	FindByAppartment(ctx context.Context, house string, appartment string) (*User, error)
+	FindByAppartment(ctx context.Context, house string, appartment string) (*repositories.User, error)
 }
 
 func (b *TBot) Init(log *zap.Logger, userRepository botUserRepository, houses func() repositories.THouses, groupChats func() repositories.TGroupChats) {
@@ -267,16 +267,27 @@ func (b *TBot) Init(log *zap.Logger, userRepository botUserRepository, houses fu
 		return residentsMenuMarkup
 	}
 
-	registrationCheckApproveCode := func(ctx tele.Context, stdctx context.Context, user *User, approveCode string) error {
+	registrationCheckApproveCode := func(ctx tele.Context, stdctx context.Context, user *repositories.User, approveCode string) error {
 		if user.Registration == nil {
 			return ctx.EditOrReply("Ошибка регистрации: вы не начинали регистрацию, поэтому не можете её завершить", getResidentsMarkup(ctx))
 		}
 		if approveCode == user.Registration.Events.Start.ApproveCode {
-			userRepository.ConfirmRegistration(stdctx, ctx.Sender().ID, confirmRegistrationEvent{int64(ctx.Update().ID), approveCode})
+			userRepository.ConfirmRegistration(
+				stdctx,
+				ctx.Sender().ID,
+				repositories.ConfirmRegistrationEvent{UpdateID: int64(ctx.Update().ID), WithCode: approveCode},
+			)
 			return ctx.EditOrReply("Спасибо. Регистрация завершена.", getResidentsMarkup(ctx))
 		} else {
-			userRepository.FailRegistration(stdctx, ctx.Sender().ID, failRegistrationEvent{int64(ctx.Update().ID), approveCode})
-			return ctx.EditOrReply("Неверный код. Попробуем заново? Процесс такой же: выбираете дом и квартиру и ждёте правильный код на почту.", helpMenuMarkup())
+			userRepository.FailRegistration(
+				stdctx,
+				ctx.Sender().ID,
+				repositories.FailRegistrationEvent{UpdateID: int64(ctx.Update().ID), WithCode: approveCode},
+			)
+			return ctx.EditOrReply(
+				"Неверный код. Попробуем заново? Процесс такой же: выбираете дом и квартиру и ждёте правильный код на почту.",
+				helpMenuMarkup(),
+			)
 		}
 	}
 
@@ -313,7 +324,7 @@ func (b *TBot) Init(log *zap.Logger, userRepository botUserRepository, houses fu
 		}
 	*/
 	handleMaybeRegistration := func(ctx tele.Context, stdctx context.Context, token string) error {
-		var approveToken useRegistrationApproveToken
+		var approveToken repositories.UserRegistrationApproveToken
 		err := DecodeSignedMessage(token, &approveToken)
 		if err != nil {
 			return err
@@ -371,7 +382,10 @@ func (b *TBot) Init(log *zap.Logger, userRepository botUserRepository, houses fu
 
 	intercomHandlers := func(ctx tele.Context) error {
 		defer tracer.Trace("intercomHandlers")()
-		return ctx.EditOrSend("Здесь будет актуальный код для прохода через домофон. Если вы знаете теукщий код - напишите его мне.", getResidentsMarkup(ctx))
+		return ctx.EditOrSend(
+			"Здесь будет актуальный код для прохода через домофон. Если вы знаете теукщий код - напишите его мне.",
+			getResidentsMarkup(ctx),
+		)
 	}
 	authGroup.Handle(&intercomCodeBtn, intercomHandlers)
 

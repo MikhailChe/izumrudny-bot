@@ -28,7 +28,10 @@ func forwardToDeveloper(log *zap.Logger) func(ctx tele.Context) error {
 func doForwardToDeveloper(ctx tele.Context) error {
 	defer tracer.Trace("doForwardToDeveloper")()
 	var chat = ctx.Chat()
-	if _, err := ctx.Bot().Send(&tele.Chat{ID: developerID}, fmt.Sprintf("Сообщение от клиента [%v]: %v %v @%v", chat.ID, chat.FirstName, chat.LastName, chat.Username)); err != nil {
+	if _, err := ctx.Bot().Send(
+		&tele.Chat{ID: developerID},
+		fmt.Sprintf("Сообщение от клиента [%v]: %v %v @%v", chat.ID, chat.FirstName, chat.LastName, chat.Username),
+	); err != nil {
 		return fmt.Errorf("форвардинг разработчику: %w", err)
 	}
 	return ctx.ForwardTo(&tele.User{ID: developerID})

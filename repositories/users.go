@@ -1,4 +1,4 @@
-package bot
+package repositories
 
 import (
 	"context"
@@ -59,7 +59,7 @@ func (c *Cars) UnmarshalJSON(bb []byte) error {
 }
 
 type tRegistrationEvents struct {
-	Start *startRegistrationEvent
+	Start *StartRegistrationEvent
 }
 
 type tRegistration struct {
@@ -277,13 +277,13 @@ func (r *UserRepository) StartRegistration(ctx context.Context, userID int64, up
 	for i := 0; i < 5; i++ {
 		invalidCodes = append(invalidCodes, GenerateApproveCode(CODE_LENGTH))
 	}
-	if err := r.LogEvent(ctx, userID, &startRegistrationEvent{updateID, houseNumber, appartment, approveCode, invalidCodes}); err != nil {
+	if err := r.LogEvent(ctx, userID, &StartRegistrationEvent{updateID, houseNumber, appartment, approveCode, invalidCodes}); err != nil {
 		return "", fmt.Errorf("регистрация пользователя: %w", err)
 	}
 	return approveCode, nil
 }
 
-func (r *UserRepository) ConfirmRegistration(ctx context.Context, userID int64, event confirmRegistrationEvent) error {
+func (r *UserRepository) ConfirmRegistration(ctx context.Context, userID int64, event ConfirmRegistrationEvent) error {
 	defer tracer.Trace("UserRepository::ConfirmRegistration")()
 	if err := r.LogEvent(ctx, userID, &event); err != nil {
 		return fmt.Errorf("подтверждение регистрации: %w", err)
@@ -291,7 +291,7 @@ func (r *UserRepository) ConfirmRegistration(ctx context.Context, userID int64, 
 	return nil
 }
 
-func (r *UserRepository) FailRegistration(ctx context.Context, userID int64, event failRegistrationEvent) error {
+func (r *UserRepository) FailRegistration(ctx context.Context, userID int64, event FailRegistrationEvent) error {
 	defer tracer.Trace("UserRepository::FailRegistration")()
 	if err := r.LogEvent(ctx, userID, &event); err != nil {
 		return fmt.Errorf("проваленная регистрация: %w", err)
@@ -299,7 +299,7 @@ func (r *UserRepository) FailRegistration(ctx context.Context, userID int64, eve
 	return nil
 }
 
-func (r *UserRepository) RegisterCarLicensePlate(ctx context.Context, userID int64, event registerCarLicensePlateEvent) error {
+func (r *UserRepository) RegisterCarLicensePlate(ctx context.Context, userID int64, event RegisterCarLicensePlateEvent) error {
 	defer tracer.Trace("UserRepository::RegisterCarLicensePlate")()
 	if err := r.LogEvent(ctx, userID, &event); err != nil {
 		return fmt.Errorf("провалена регистрация авто: %w", err)
@@ -307,7 +307,7 @@ func (r *UserRepository) RegisterCarLicensePlate(ctx context.Context, userID int
 	return nil
 }
 
-type useRegistrationApproveToken struct {
+type UserRegistrationApproveToken struct {
 	UserID      int64
 	ApproveCode string
 }

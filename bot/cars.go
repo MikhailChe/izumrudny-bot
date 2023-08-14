@@ -3,6 +3,7 @@ package bot
 import (
 	"context"
 	"fmt"
+	"mikhailche/botcomod/repositories"
 
 	tele "gopkg.in/telebot.v3"
 )
@@ -16,7 +17,7 @@ type carsHandler struct {
 }
 
 type carsUserRepository interface {
-	RegisterCarLicensePlate(ctx context.Context, userID int64, event registerCarLicensePlateEvent) error
+	RegisterCarLicensePlate(ctx context.Context, userID int64, event repositories.RegisterCarLicensePlateEvent) error
 }
 
 func NewCarsHandler(users carsUserRepository, upperMenu *tele.Btn) *carsHandler {
@@ -112,7 +113,11 @@ func (c *carsHandler) HandleAddCar(ctx tele.Context) error {
 }
 
 func (c *carsHandler) ConfirmPlateHandler(ctx tele.Context) error {
-	if err := c.users.RegisterCarLicensePlate(context.Background(), ctx.Sender().ID, registerCarLicensePlateEvent{int64(ctx.Update().ID), ctx.Args()[0]}); err != nil {
+	if err := c.users.RegisterCarLicensePlate(
+		context.Background(),
+		ctx.Sender().ID,
+		repositories.RegisterCarLicensePlateEvent{UpdateID: int64(ctx.Update().ID), LicensePlate: ctx.Args()[0]},
+	); err != nil {
 		return fmt.Errorf("ошибка регистрации авто: %v: %w",
 			ctx.Reply("Ошибка регистрации автомобиля. Попробуйте позже"),
 			err,
