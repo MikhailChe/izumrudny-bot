@@ -121,7 +121,7 @@ func (r *UserRepository) LogEvent(ctx context.Context, userID int64, event UserE
 			table.NewQueryParameters(
 				table.ValueParam("$user", types.Int64Value(userID)),
 				table.ValueParam("$timestamp", types.TimestampValueFromTime(now)),
-				table.ValueParam("$type", types.StringValueFromString(fmt.Sprintf("%T", event))),
+				table.ValueParam("$type", types.StringValueFromString(event.FQDN())),
 				table.ValueParam("$event", types.JSONDocumentValueFromBytes(eventBytes)),
 			),
 		)

@@ -59,7 +59,9 @@ func newApp() *app {
 	groupChatRepository := repositories.NewGroupChatRepository(ydb)
 	groupChatService := services.NewGroupChatService(groupChatRepository)
 
-	bot, err := bot.NewBot(log, userRepository, houseService.Houses, groupChatService.GroupChats)
+	updateLogRepository := repositories.NewUpdateLogger(ydb, log)
+
+	bot, err := bot.NewBot(log, userRepository, houseService.Houses, groupChatService.GroupChats, updateLogRepository)
 	if err != nil {
 		log.Fatal("Ошибка инициализации бота", zap.Error(err))
 	}

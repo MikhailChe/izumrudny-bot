@@ -29,10 +29,15 @@ type TBot struct {
 	Bot *tele.Bot
 }
 
-func NewBot(log *zap.Logger, userRepository botUserRepository, houses func() repositories.THouses, groupChats func() repositories.TGroupChats) (*TBot, error) {
+func NewBot(log *zap.Logger,
+	userRepository botUserRepository,
+	houses func() repositories.THouses,
+	groupChats func() repositories.TGroupChats,
+	updateLogRepository *repositories.UpdateLogger,
+) (*TBot, error) {
 	var b TBot
 	rand.Seed(time.Now().UnixMicro())
-	b.Init(log, userRepository, houses, groupChats)
+	b.Init(log, userRepository, houses, groupChats, updateLogRepository)
 	return &b, nil
 }
 
@@ -50,7 +55,13 @@ type botUserRepository interface {
 	FindByAppartment(ctx context.Context, house string, appartment string) (*repositories.User, error)
 }
 
-func (b *TBot) Init(log *zap.Logger, userRepository botUserRepository, houses func() repositories.THouses, groupChats func() repositories.TGroupChats) {
+func (b *TBot) Init(
+	log *zap.Logger,
+	userRepository botUserRepository,
+	houses func() repositories.THouses,
+	groupChats func() repositories.TGroupChats,
+	updateLogRepository *repositories.UpdateLogger,
+) {
 	defer tracer.Trace("botInit")()
 	var err error
 	telegramToken := os.Getenv("TELEGRAM_TOKEN")
@@ -122,8 +133,7 @@ func (b *TBot) Init(log *zap.Logger, userRepository botUserRepository, houses fu
 		}
 	})
 
-	log.Info("Adding admin command controller")
-	handlers.AdminCommandController(bot.Group(), func(hf tele.HandlerFunc) tele.HandlerFunc {
+	adminAuthMiddleware := func(hf tele.HandlerFunc) tele.HandlerFunc {
 		return func(ctx tele.Context) error {
 			defer tracer.Trace("AdminCommandControllerAuth middleware")()
 			if userRepository.IsAdmin(context.Background(), ctx.Sender().ID) {
@@ -131,7 +141,13 @@ func (b *TBot) Init(log *zap.Logger, userRepository botUserRepository, houses fu
 			}
 			return nil
 		}
-	})
+	}
+
+	log.Info("Adding admin command controller")
+	handlers.AdminCommandController(bot.Group(), adminAuthMiddleware)
+
+	log.Info("Adding replay update controller")
+	handlers.ReplayUpdateController(bot.Group(), adminAuthMiddleware, updateLogRepository, bot)
 
 	var markup = bot.NewMarkup()
 	helpMainMenuBtn := markup.Data("⬅️ Назад в главное меню", "help-main-menu")
