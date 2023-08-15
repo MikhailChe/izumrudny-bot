@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"mikhailche/botcomod/handlers"
+	markup "mikhailche/botcomod/lib/bot-markup"
 	"mikhailche/botcomod/lib/http"
 	"mikhailche/botcomod/repositories"
 	"mikhailche/botcomod/tracer"
@@ -73,7 +74,9 @@ func (b *TBot) Init(
 		OnError: func(err error, c tele.Context) {
 			defer tracer.Trace("Telebot::OnError")()
 			if c != nil {
-				log.Error("Ошибка внутри бота", zap.Any("update", c.Update()), zap.Error(err), zap.Reflect("errorStruct", err), zap.String("errorType", fmt.Sprintf("%T", err)))
+				log.Error("Ошибка внутри бота",
+					zap.Any("update", c.Update()), zap.Error(err),
+					zap.Reflect("errorStruct", err), zap.String("errorType", fmt.Sprintf("%T", err)))
 			} else {
 				log.Error("Ошибка внутри бота", zap.Error(err))
 			}
@@ -149,44 +152,10 @@ func (b *TBot) Init(
 	log.Info("Adding replay update controller")
 	handlers.ReplayUpdateController(bot.Group(), adminAuthMiddleware, updateLogRepository, bot)
 
-	var markup = bot.NewMarkup()
-	helpMainMenuBtn := markup.Data("⬅️ Назад в главное меню", "help-main-menu")
-	districtChatsBtn := markup.Data("💬🏘 Чаты района", "district-chats")
-
-	helpfulPhonesBtn := markup.Data("☎️ Телефоны", "phone-numbers")
-
-	residentsBtn := markup.Data("🏡 Для резидентов", "authorized-section")
-	intercomCodeBtn := markup.Data("🔑 Код домофона", "intercom-code")
-	videoCamerasBtn := markup.Data("📽 Камеры видеонаблюдения", "internal-video-cameras")
-	pmWithResidentsBtn := markup.Data("💬 Чат с другими резидентами", "resident-pm")
-
-	// registerBtn := markup.Data("📒 Начать регистрацию", "registration")
-
-	helpMenuMarkup := func() *tele.ReplyMarkup {
-		defer tracer.Trace("helpMenuMarkup")()
-		var markup = bot.NewMarkup()
-		markup.Inline(
-			markup.Row(districtChatsBtn),
-			markup.Row(helpfulPhonesBtn),
-			markup.Row(residentsBtn),
-			markup.Row(markup.Text("🟢 Без комунальных проблем")),
-		)
-		return markup
-	}
-
-	helpHandler := func(ctx tele.Context) error {
-		defer tracer.Trace("helpHandler")()
-		return ctx.EditOrSend(
-			"Привет. Я помогу сориентироваться в Изумрудном Бору.\nВы всегда можете вызвать это меню командой /help",
-			helpMenuMarkup(),
-		)
-	}
-	bot.Handle("/help", helpHandler)
-	bot.Handle(&helpMainMenuBtn, helpHandler)
+	handlers.HelpMenuController(bot.Group())
 
 	chatsHandler := func(ctx tele.Context) error {
 		defer tracer.Trace("chatsHandler")()
-		var markup = bot.NewMarkup()
 		var rows []tele.Row
 		var linkGroup []tele.Btn
 		dumpMe := func() {
@@ -210,20 +179,20 @@ func (b *TBot) Init(
 				dumpMe()
 			}
 		}
-		rows = append(rows, markup.Row(helpMainMenuBtn))
-		markup.Inline(rows...)
+		rows = append(rows, markup.Row(markup.HelpMainMenuBtn))
 		return ctx.EditOrSend(
 			"Вот список известных мне чатов.\n"+
 				"Для вступления в большинство из них требуется подтверждение от администратора чата (🔐).",
-			markup,
+			markup.InlineMarkup(rows...),
 		)
 	}
-	bot.Handle(&districtChatsBtn, chatsHandler)
+	bot.Handle(&markup.DistrictChatsBtn, chatsHandler)
 	bot.Handle("/chats", chatsHandler)
 
-	handlers.PhonesController(bot, &helpMainMenuBtn, &helpfulPhonesBtn)
+	log.Info("Adding phones controller")
+	handlers.PhonesController(bot.Group(), &markup.HelpMainMenuBtn, &markup.HelpfulPhonesBtn)
 
-	registrationService := newTelegramRegistrator(log, userRepository, houses, helpMainMenuBtn)
+	registrationService := newTelegramRegistrator(log, userRepository, houses, markup.HelpMainMenuBtn)
 	registrationService.Register(bot)
 
 	var authMiddleware tele.MiddlewareFunc = func(next tele.HandlerFunc) tele.HandlerFunc {
@@ -232,11 +201,9 @@ func (b *TBot) Init(
 			if userRepository.IsResident(context.Background(), ctx.Sender().ID) {
 				return next(ctx)
 			}
-			markup := bot.NewMarkup()
 			var rows []tele.Row
 			rows = append(rows, markup.Row(*registrationService.EntryPoint()))
-			rows = append(rows, markup.Row(helpMainMenuBtn))
-			markup.Inline(rows...)
+			rows = append(rows, markup.Row(markup.HelpMainMenuBtn))
 			return ctx.EditOrSend(`Этот раздел только для резидентов изумрудного бора. 
 Нажмите клавишу регистрации, чтобы получить доступ. Регистрация может занять от нескольких минут до нескольких дней.
 
@@ -244,43 +211,38 @@ func (b *TBot) Init(
 А в некоторые соседские чаты вы сможете вступать без дополнительной проверки.
 
 В будущем мы дадим возможность не раскрывая персональных данных общаться с любым резидентом по номеру квартиры или автомобиля на парковке.`,
-				markup,
+				markup.InlineMarkup(rows...),
 			)
 		}
 	}
 
-	carsService := NewCarsHandler(userRepository, &helpMainMenuBtn)
+	carsService := NewCarsHandler(userRepository, &markup.HelpMainMenuBtn)
 	carsService.Register(bot)
 
 	getResidentsMarkup := func(ctx tele.Context) *tele.ReplyMarkup {
 		defer tracer.Trace("getResidentsMarkup")()
 		user, err := userRepository.GetById(context.Background(), ctx.Sender().ID)
 		if err != nil || user.Registration == nil {
-			residentsMenuMarkup := bot.NewMarkup()
 			var rows []tele.Row
 			rows = append(rows,
 				// residentsMenuMarkup.Row(intercomCodeBtn),
-				residentsMenuMarkup.Row(videoCamerasBtn),
-				residentsMenuMarkup.Row(pmWithResidentsBtn),
-				residentsMenuMarkup.Row(helpMainMenuBtn),
+				markup.Row(markup.VideoCamerasBtn),
+				markup.Row(markup.PMWithResidentsBtn),
+				markup.Row(markup.HelpMainMenuBtn),
 			)
 			if userRepository.IsAdmin(context.Background(), ctx.Sender().ID) {
-				rows = append(rows, residentsMenuMarkup.Row(carsService.EntryPoint()))
+				rows = append(rows, markup.Row(carsService.EntryPoint()))
 			}
-			residentsMenuMarkup.Inline(rows...)
-			return residentsMenuMarkup
+			return markup.InlineMarkup(rows...)
 		}
-		continueRegisterBtn := markup.Data("📒 Продолжить регистрацию", registrationService.EntryPoint().Unique)
 
-		residentsMenuMarkup := bot.NewMarkup()
-		residentsMenuMarkup.Inline(
+		return markup.InlineMarkup(
 			// residentsMenuMarkup.Row(intercomCodeBtn),
-			residentsMenuMarkup.Row(videoCamerasBtn),
-			residentsMenuMarkup.Row(pmWithResidentsBtn),
-			residentsMenuMarkup.Row(continueRegisterBtn),
-			residentsMenuMarkup.Row(helpMainMenuBtn),
+			markup.Row(markup.VideoCamerasBtn),
+			markup.Row(markup.PMWithResidentsBtn),
+			markup.Row(markup.ContinueRegisterBtn),
+			markup.Row(markup.HelpMainMenuBtn),
 		)
-		return residentsMenuMarkup
 	}
 
 	registrationCheckApproveCode := func(ctx tele.Context, stdctx context.Context, user *repositories.User, approveCode string) error {
@@ -302,7 +264,7 @@ func (b *TBot) Init(
 			)
 			return ctx.EditOrReply(
 				"Неверный код. Попробуем заново? Процесс такой же: выбираете дом и квартиру и ждёте правильный код на почту.",
-				helpMenuMarkup(),
+				markup.HelpMenuMarkup(),
 			)
 		}
 	}
@@ -346,7 +308,7 @@ func (b *TBot) Init(
 			return err
 		}
 		if approveToken.UserID != ctx.Sender().ID {
-			return ctx.EditOrReply("Этот код регистрации для другого пользователя. Перепутали телефон?", helpMenuMarkup())
+			return ctx.EditOrReply("Этот код регистрации для другого пользователя. Перепутали телефон?", markup.HelpMenuMarkup())
 		}
 
 		user, err := userRepository.GetById(stdctx, ctx.Sender().ID)
@@ -394,7 +356,7 @@ func (b *TBot) Init(
 		defer tracer.Trace("residentsHandler")()
 		return ctx.EditOrSend("Немного полезностей для резидентов", getResidentsMarkup(ctx))
 	}
-	authGroup.Handle(&residentsBtn, residentsHandler)
+	authGroup.Handle(&markup.ResidentsBtn, residentsHandler)
 
 	intercomHandlers := func(ctx tele.Context) error {
 		defer tracer.Trace("intercomHandlers")()
@@ -403,7 +365,7 @@ func (b *TBot) Init(
 			getResidentsMarkup(ctx),
 		)
 	}
-	authGroup.Handle(&intercomCodeBtn, intercomHandlers)
+	authGroup.Handle(&markup.IntercomCodeBtn, intercomHandlers)
 
 	videoCamerasHandler := func(ctx tele.Context) error {
 		defer tracer.Trace("videoCamerasHandler")()
@@ -421,9 +383,9 @@ func (b *TBot) Init(
 			tele.ModeHTML,
 			getResidentsMarkup(ctx))
 	}
-	authGroup.Handle(&videoCamerasBtn, videoCamerasHandler)
+	authGroup.Handle(&markup.VideoCamerasBtn, videoCamerasHandler)
 
-	residentsChatter, err := NewResidentsChatter(userRepository, houses, helpMainMenuBtn)
+	residentsChatter, err := NewResidentsChatter(userRepository, houses, markup.HelpMainMenuBtn)
 	if err != nil {
 		log.Fatal("Ошибка инициализации чатов", zap.Error(err))
 	}
@@ -434,7 +396,7 @@ func (b *TBot) Init(
 		return residentsChatter.HandleChatWithResident(ctx)
 	}
 	authGroup.Handle("/connect", pmWithResidentsHandler)
-	authGroup.Handle(&pmWithResidentsBtn, pmWithResidentsHandler)
+	authGroup.Handle(&markup.PMWithResidentsBtn, pmWithResidentsHandler)
 
 	bot.Handle("/reply", func(ctx tele.Context) error {
 		if len(ctx.Args()) <= 1 {
