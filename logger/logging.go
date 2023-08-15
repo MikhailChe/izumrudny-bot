@@ -3,13 +3,13 @@ package logger
 import (
 	"fmt"
 
-	. "mikhailche/botcomod/tracer"
+	"mikhailche/botcomod/tracer"
 
 	"go.uber.org/zap"
 )
 
 func New() (*zap.Logger, error) {
-	defer Trace("newLogger")()
+	defer tracer.Trace("newLogger")()
 
 	zapConfig := zap.NewProductionConfig()
 	zapConfig.DisableCaller = false

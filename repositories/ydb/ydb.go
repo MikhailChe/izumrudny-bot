@@ -11,11 +11,11 @@ import (
 	yc "github.com/ydb-platform/ydb-go-yc"
 	"go.uber.org/zap"
 
-	. "mikhailche/botcomod/tracer"
+	"mikhailche/botcomod/tracer"
 )
 
 func ydbOpen(ctx context.Context, log *zap.Logger) (*ydb.Driver, error) {
-	defer Trace("ydbOpen")()
+	defer tracer.Trace("ydbOpen")()
 	log.Info("Открываю новое YDB соединение")
 	var credOption ydb.Option = yc.WithMetadataCredentials()
 	if ydb_sa_key := os.Getenv("YDB_SA_KEY"); len(ydb_sa_key) > 0 {
@@ -35,7 +35,7 @@ func ydbOpen(ctx context.Context, log *zap.Logger) (*ydb.Driver, error) {
 }
 
 func NewYDBDriverWithPing(ctx context.Context, log *zap.Logger) (**ydb.Driver, error) {
-	defer Trace("NewYDBDriver")()
+	defer tracer.Trace("NewYDBDriver")()
 	log.Info("Создаю новое YDB соединение")
 	ydbd, err := ydbOpen(ctx, log)
 	if err != nil {
@@ -46,7 +46,7 @@ func NewYDBDriverWithPing(ctx context.Context, log *zap.Logger) (**ydb.Driver, e
 }
 
 func NewYDBDriver(ctx context.Context, log *zap.Logger) (*ydb.Driver, error) {
-	defer Trace("NewYDBDriver")()
+	defer tracer.Trace("NewYDBDriver")()
 	log.Info("Создаю новое YDB соединение")
 	ydbd, err := ydbOpen(ctx, log)
 	if err != nil {

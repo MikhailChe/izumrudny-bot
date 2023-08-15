@@ -19,14 +19,14 @@ type app struct {
 	db           *ydb.Driver
 	Bot          *bot.TBot
 	Log          *zap.Logger
-	UpdateLogger *UpdateLogger
+	UpdateLogger *repositories.UpdateLogger
 }
 
 var _the_app *app
 var _the_app_mutex sync.Mutex
 
 func APP() *app {
-	tracer.Trace("APP")()
+	defer tracer.Trace("APP")()
 	_the_app_mutex.Lock()
 	defer _the_app_mutex.Unlock()
 	if _the_app == nil {
@@ -59,7 +59,7 @@ func newApp() *app {
 	groupChatRepository := repositories.NewGroupChatRepository(ydb)
 	groupChatService := services.NewGroupChatService(groupChatRepository)
 
-	updateLogRepository := repositories.NewUpdateLogger(ydb, log)
+	updateLogRepository := repositories.NewUpdateLogger(ydb, log.Named("updateLogger"))
 
 	bot, err := bot.NewBot(log, userRepository, houseService.Houses, groupChatService.GroupChats, updateLogRepository)
 	if err != nil {
@@ -69,6 +69,6 @@ func newApp() *app {
 		db:           ydb,
 		Bot:          bot,
 		Log:          log,
-		UpdateLogger: newUpdateLogger(ydb, log.Named("updateLogger")),
+		UpdateLogger: updateLogRepository,
 	}
 }

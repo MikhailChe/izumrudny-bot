@@ -1,7 +1,6 @@
 package tracer
 
 import (
-	"fmt"
 	"testing"
 	"time"
 )
@@ -16,7 +15,7 @@ func TestTracing(t *testing.T) {
 	}
 	t.Log(string(trace))
 
-	t.Log(fmt.Sprintf("%#v", ChromeTraceEvents(globaltracectx.rootSpan)))
+	t.Logf("%#v", ChromeTraceEvents(globaltracectx.rootSpan))
 }
 
 func A1() {

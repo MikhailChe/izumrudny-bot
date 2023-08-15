@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"path"
 
-	. "mikhailche/botcomod/tracer"
+	"mikhailche/botcomod/tracer"
 
 	"github.com/ydb-platform/ydb-go-sdk/v3"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
@@ -25,7 +25,7 @@ type TGroupChat struct {
 }
 
 func (h *TGroupChats) Scan(res result.Result) error {
-	defer Trace("tHouses::Scan")()
+	defer tracer.Trace("tHouses::Scan")()
 	var chats []TGroupChat
 	for res.NextRow() {
 		var chat TGroupChat
@@ -39,7 +39,7 @@ func (h *TGroupChats) Scan(res result.Result) error {
 }
 
 func (h *TGroupChat) Scan(res result.Result) error {
-	defer Trace("tHouse::Scan")()
+	defer tracer.Trace("tHouse::Scan")()
 	return res.ScanNamed(
 		named.OptionalWithDefault("group", &h.Group),
 		named.OptionalWithDefault("name", &h.Name),
@@ -59,7 +59,7 @@ func NewGroupChatRepository(driver *ydb.Driver) *ChatRepository {
 }
 
 func (h *ChatRepository) Init(ctx context.Context) error {
-	defer Trace("ChatRepository::Init")()
+	defer tracer.Trace("ChatRepository::Init")()
 	return h.db.Table().Do(ctx, func(ctx context.Context, s table.Session) error {
 		return s.CreateTable(ctx, path.Join(h.db.Name(), "groupChat"),
 			options.WithColumn("group", types.TypeString),
@@ -72,7 +72,7 @@ func (h *ChatRepository) Init(ctx context.Context) error {
 }
 
 func (h *ChatRepository) GetGroupChats(ctx context.Context) (TGroupChats, error) {
-	defer Trace("ChatRepository::GetGroupChats")()
+	defer tracer.Trace("ChatRepository::GetGroupChats")()
 	var chats TGroupChats
 	if err := h.db.Table().Do(ctx, func(ctx context.Context, s table.Session) error {
 		_, res, err := s.Execute(ctx, table.DefaultTxControl(), `SELECT * FROM groupChat ORDER BY order`, table.NewQueryParameters())

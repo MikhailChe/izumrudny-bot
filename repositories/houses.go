@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"path"
 
-	. "mikhailche/botcomod/tracer"
+	"mikhailche/botcomod/tracer"
 
 	"github.com/ydb-platform/ydb-go-sdk/v3"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
@@ -28,7 +28,7 @@ type THouse struct {
 }
 
 func (h *THouse) Scan(res result.Result) error {
-	defer Trace("tHouse::Scan")()
+	defer tracer.Trace("tHouse::Scan")()
 	return res.ScanNamed(
 		named.OptionalWithDefault("id", &h.ID),
 		named.OptionalWithDefault("number", &h.Number),
@@ -41,7 +41,7 @@ func (h *THouse) Scan(res result.Result) error {
 type THouses []THouse
 
 func (h *THouses) Scan(res result.Result) error {
-	defer Trace("tHouses::Scan")()
+	defer tracer.Trace("tHouses::Scan")()
 	var houses THouses
 	for res.NextRow() {
 		var house THouse
@@ -63,7 +63,7 @@ func NewHouseRepository(driver *ydb.Driver) *HouseRepository {
 }
 
 func (h *HouseRepository) Init(ctx context.Context) error {
-	defer Trace("HouseRepository::Init")()
+	defer tracer.Trace("HouseRepository::Init")()
 	return h.DB.Table().Do(ctx, func(ctx context.Context, s table.Session) error {
 		return s.CreateTable(ctx, path.Join(h.DB.Name(), "house"),
 			options.WithColumn("id", types.TypeUint64),
@@ -77,7 +77,7 @@ func (h *HouseRepository) Init(ctx context.Context) error {
 }
 
 func (h *HouseRepository) GetHouses(ctx context.Context) (THouses, error) {
-	defer Trace("HouseRepository::GetHouses")()
+	defer tracer.Trace("HouseRepository::GetHouses")()
 	var houses THouses
 	if err := h.DB.Table().Do(ctx, func(ctx context.Context, s table.Session) error {
 		_, res, err := s.Execute(ctx, table.DefaultTxControl(), `SELECT * FROM house`, table.NewQueryParameters())
