@@ -7,7 +7,7 @@ import (
 	tele "gopkg.in/telebot.v3"
 )
 
-func HelpMenuController(mux botMux) {
+func StaticDataController(mux botMux) {
 	helpHandler := func(ctx tele.Context) error {
 		defer tracer.Trace("helpHandler")()
 		return ctx.EditOrSend(
@@ -17,4 +17,10 @@ func HelpMenuController(mux botMux) {
 	}
 	mux.Handle("/help", helpHandler)
 	mux.Handle(&markup.HelpMainMenuBtn, helpHandler)
+
+	mux.Handle("/status", func(ctx tele.Context) error {
+		defer tracer.Trace("/status")()
+		// return ctx.EditOrSend("🟡 Проводятся технические работы на линии интернета оператора МТС")
+		return ctx.EditOrSend("🟢 Пока нет известных проблем")
+	})
 }

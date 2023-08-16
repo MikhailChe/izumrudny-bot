@@ -2,12 +2,9 @@ package bot
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"math/rand"
 	"os"
-	"strconv"
-	"strings"
 	"time"
 
 	"mikhailche/botcomod/handlers"
@@ -19,12 +16,6 @@ import (
 	"go.uber.org/zap"
 	tele "gopkg.in/telebot.v3"
 )
-
-const botDescription = `Я бот микрорайона Изумрудный Бор. Я подскажу как позвонить в пункт охраны, УК, найти общий чатик и соседские чаты домов. 
-Со мной вы не пропустите важные анонсы и многое другое.
-
-Меня разрабатывают сами жители района на добровольных началах. Если есть предложения - напишите их мне, а я передам разработчикам.
-Зарегистрированные резиденты в скором времени смогут искать друг друга по номеру авто или квартиры.`
 
 type TBot struct {
 	Bot *tele.Bot
@@ -147,12 +138,14 @@ func (b *TBot) Init(
 	}
 
 	log.Info("Adding admin command controller")
-	handlers.AdminCommandController(bot.Group(), adminAuthMiddleware)
+	handlers.AdminCommandController(bot.Group(), adminAuthMiddleware, bot, userRepository)
 
 	log.Info("Adding replay update controller")
 	handlers.ReplayUpdateController(bot.Group(), adminAuthMiddleware, updateLogRepository, bot)
 
-	handlers.HelpMenuController(bot.Group())
+	handlers.StaticDataController(bot.Group())
+	log.Info("Adding phones controller")
+	handlers.PhonesController(bot.Group(), &markup.HelpMainMenuBtn, &markup.HelpfulPhonesBtn)
 
 	chatsHandler := func(ctx tele.Context) error {
 		defer tracer.Trace("chatsHandler")()
@@ -188,9 +181,6 @@ func (b *TBot) Init(
 	}
 	bot.Handle(&markup.DistrictChatsBtn, chatsHandler)
 	bot.Handle("/chats", chatsHandler)
-
-	log.Info("Adding phones controller")
-	handlers.PhonesController(bot.Group(), &markup.HelpMainMenuBtn, &markup.HelpfulPhonesBtn)
 
 	registrationService := newTelegramRegistrator(log, userRepository, houses, markup.HelpMainMenuBtn)
 	registrationService.Register(bot)
@@ -327,26 +317,7 @@ func (b *TBot) Init(
 				log.Error("Ошибочная /start регистрация", zap.Error(err))
 			}
 		}
-		return ctx.EditOrReply("Привет! " + botDescription + "\nИспользуйте команду /help для вызова меню")
-	})
-
-	bot.Handle("/whoami", func(ctx tele.Context) error {
-		defer tracer.Trace("/whoami")()
-		userID := ctx.Sender().ID
-		if len(ctx.Args()) > 0 && len(ctx.Args()[0]) > 0 {
-			parsedUserID, err := strconv.Atoi(ctx.Args()[0])
-			if err == nil {
-				userID = int64(parsedUserID)
-			}
-		}
-		user, err := userRepository.GetById(context.Background(), userID)
-		if err != nil {
-			return fmt.Errorf("не могу достать пользователя: %w", err)
-		}
-		userRepository.IsResident(context.Background(), userID)
-		userAsJson, _ := json.MarshalIndent(*user, "", "  ")
-		eventsAsJson, _ := json.MarshalIndent(user.Events, "", "  ")
-		return ctx.EditOrReply(fmt.Sprintf("%#v\n\n%v\n\n%v", *user, string(userAsJson), string(eventsAsJson)))
+		return ctx.EditOrReply("Привет! " + handlers.BotDescription + "\nИспользуйте команду /help для вызова меню")
 	})
 
 	authGroup := bot.Group()
@@ -398,64 +369,6 @@ func (b *TBot) Init(
 	authGroup.Handle("/connect", pmWithResidentsHandler)
 	authGroup.Handle(&markup.PMWithResidentsBtn, pmWithResidentsHandler)
 
-	bot.Handle("/reply", func(ctx tele.Context) error {
-		if len(ctx.Args()) <= 1 {
-			return nil
-		}
-
-		id, err := strconv.Atoi(ctx.Args()[0])
-		if err != nil {
-			return fmt.Errorf(
-				"парсинг id пользователья для ответа: %v: %w",
-				ctx.Reply(fmt.Sprintf("Не получилось: %v", err)),
-				err,
-			)
-		}
-		message := strings.Join(ctx.Args()[1:], " ")
-		_, err = ctx.Bot().Send(&tele.User{ID: int64(id)}, message)
-		if err != nil {
-			return fmt.Errorf("/reply пользователю: %w", err)
-		}
-		return nil
-	})
-
-	bot.Handle("/manual_register", func(ctx tele.Context) error {
-		if !userRepository.IsAdmin(context.Background(), ctx.Sender().ID) {
-			return nil
-		}
-		userID, err := strconv.ParseInt(ctx.Args()[0], 10, 64)
-		if err != nil {
-			return ctx.Reply(fmt.Sprintf("Пользователь неверный: %v", userID))
-		}
-
-		approveCode, err := userRepository.StartRegistration(context.Background(),
-			userID,
-			int64(ctx.Update().ID),
-			ctx.Args()[1],
-			ctx.Args()[2])
-		if err != nil {
-			return ctx.Reply(fmt.Sprintf("Ошибка регистрации: %v", err))
-		}
-
-		if _, err := ctx.Bot().Send(
-			&tele.User{ID: int64(userID)},
-			`Спасибо за регистрацию. 
-Пока что вам доступен раздел со ссылками на камеры видеонаблюдения.
-В ваш почтовый ящик будет отправлен код подтверждения. Используйте полученный код в меню для резидентов, чтобы завершить регистрацию.
-`,
-		); err != nil {
-			return fmt.Errorf("успешная регистраци: %w", err)
-		}
-		return ctx.Reply(fmt.Sprintf("Теперь отправь этот код [%v] в дом %v квартира %v", approveCode, ctx.Args()[1], ctx.Args()[2]))
-
-	})
-
-	bot.Handle("/status", func(ctx tele.Context) error {
-		defer tracer.Trace("/status")()
-		// return ctx.EditOrSend("🟡 Проводятся технические работы на линии интернета оператора МТС")
-		return ctx.EditOrSend("🟢 Пока нет известных проблем")
-	})
-
 	bot.Handle(tele.OnText, forwardToDeveloper(log))
 	bot.Handle(tele.OnMedia, func(ctx tele.Context) error {
 		stdctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -468,33 +381,5 @@ func (b *TBot) Init(
 			return registrationService.HandleMediaCreated(user, ctx)
 		}
 		return forwardToDeveloper(log)(ctx)
-	})
-	botInitHandleService(bot)
-}
-
-func botInitHandleService(bot *tele.Bot) {
-	defer tracer.Trace("botInitHandleService")()
-	bot.Handle("/service", func(ctx tele.Context) error {
-		if err := bot.SetCommands([]tele.Command{
-			{Text: "help", Description: "Справка"},
-			{Text: "chats", Description: "Чаты района"},
-			{Text: "phones", Description: "Телефоны служб"},
-			{Text: "status", Description: "Статус текущих проблем в районе."},
-		}, "ru"); err != nil {
-			return fmt.Errorf("/service SetCommands: %w", err)
-		}
-
-		if _, err := bot.Raw("setMyDescription", map[string]string{
-			"description": botDescription,
-		}); err != nil {
-			return fmt.Errorf("/service setMyDescription: %w", err)
-		}
-
-		if _, err := bot.Raw("setMyShortDescription", map[string]string{
-			"short_description": "Бот изумрдуного бора. Полезные телефоны, ссылки на чаты, анонсы.",
-		}); err != nil {
-			return fmt.Errorf("/service setMyShortDescription: %w", err)
-		}
-		return nil
 	})
 }

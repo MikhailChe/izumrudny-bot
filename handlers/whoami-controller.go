@@ -13,7 +13,8 @@ import (
 
 type iUserRepository interface {
 	GetById(ctx context.Context, userID int64) (*repositories.User, error)
-	IsResident(ctx context.Context, userID int64) (bool, error)
+	IsResident(ctx context.Context, userID int64) bool
+	StartRegistration(ctx context.Context, userID int64, updateID int64, houseNumber string, appartment string) (string, error)
 }
 
 func WhoAmIController(mux botMux, userRepository iUserRepository) {

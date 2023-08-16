@@ -58,3 +58,4 @@ func Handler(ctx context.Context, body []byte) (*LambdaResponse, error) {
 // TODO: добавить сервис показания счётчиков
 // TODO: информация про тихий час
 // TODO: информация про правила поведения с собаками
+// TODO: добавить managed ссылки на чаты
