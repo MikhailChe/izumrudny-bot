@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
+	markup "mikhailche/botcomod/lib/bot-markup"
 	"mikhailche/botcomod/repositories"
 	"mikhailche/botcomod/tracer"
 
@@ -63,7 +64,6 @@ func (r *ResidentsChatter) RegisterBotsHandlers(bot HandleRegistrator) {
 
 func (r *ResidentsChatter) HandleChatWithResident(ctx tele.Context) error {
 	defer tracer.Trace("ResidentsChatter::HandleChatWithResident")()
-	markup := ctx.Bot().NewMarkup()
 	var rows []tele.Row
 	var buttons []tele.Btn
 	for _, house := range r.houses() {
@@ -78,13 +78,12 @@ func (r *ResidentsChatter) HandleChatWithResident(ctx tele.Context) error {
 		buttons = nil
 	}
 	rows = append(rows, markup.Row(r.upperMenu))
-	markup.Inline(rows...)
 	return ctx.EditOrReply("Какие правила: можно связаться с зарегистрированным резидентом. Для этого нужно выбрать номер дома и "+
 		"номер квартиры (машиноместа). Я отправлю запрос на контакт всем, кто проживает по этому адресу вместе с номером дома и квартирой, в которой проживаете вы. "+
 		"Если запрос будет подтверждён, то я отправлю обоим участникам контактные данные и вы сможете связаться друг с другом.\n\n"+
 		"Итак, с кем хотим связаться?\n"+
 		"Выберите номер дома 🏠",
-		markup,
+		markup.InlineMarkup(rows...),
 	)
 }
 
