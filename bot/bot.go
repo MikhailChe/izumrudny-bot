@@ -138,7 +138,7 @@ func (b *TBot) Init(
 	}
 
 	log.Info("Adding admin command controller")
-	handlers.AdminCommandController(bot.Group(), adminAuthMiddleware, bot, userRepository)
+	handlers.AdminCommandController(bot.Group(), adminAuthMiddleware, userRepository)
 
 	log.Info("Adding replay update controller")
 	handlers.ReplayUpdateController(bot.Group(), adminAuthMiddleware, updateLogRepository, bot)

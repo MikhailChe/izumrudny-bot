@@ -12,18 +12,13 @@ import (
 	tele "gopkg.in/telebot.v3"
 )
 
-type iCommandSetter interface {
-	SetCommands(opts ...interface{}) error
-	Raw(method string, payload interface{}) ([]byte, error)
-}
-
 const BotDescription = `Я бот микрорайона Изумрудный Бор. Я подскажу как позвонить в пункт охраны, УК, найти общий чатик и соседские чаты домов. 
 Со мной вы не пропустите важные анонсы и многое другое.
 
 Меня разрабатывают сами жители района на добровольных началах. Если есть предложения - напишите их мне, а я передам разработчикам.
 Зарегистрированные резиденты в скором времени смогут искать друг друга по номеру авто или квартиры.`
 
-func AdminCommandController(mux botMux, adminAuth tele.MiddlewareFunc, bot iCommandSetter, userRepository iUserRepository) {
+func AdminCommandController(mux botMux, adminAuth tele.MiddlewareFunc, userRepository iUserRepository) {
 	mux.Use(adminAuth)
 	mux.Handle("/chatidlink", func(ctx tele.Context) error {
 		defer tracer.Trace("/chatidlink")()
@@ -33,6 +28,7 @@ func AdminCommandController(mux botMux, adminAuth tele.MiddlewareFunc, bot iComm
 	})
 
 	mux.Handle("/service", func(ctx tele.Context) error {
+		var bot = ctx.Bot()
 		if err := bot.SetCommands([]tele.Command{
 			{Text: "help", Description: "Справка"},
 			{Text: "chats", Description: "Чаты района"},
@@ -127,4 +123,12 @@ func AdminCommandController(mux botMux, adminAuth tele.MiddlewareFunc, bot iComm
 		return nil
 	})
 
+	mux.Handle("/test", func(ctx tele.Context) error {
+		return ctx.Send(&tele.Photo{
+			File: tele.FromURL("https://cdn1.ozone.ru/s3/multimedia-7/6425618107.jpg"),
+			Caption: `Привет, это <b>долика</b>.
+			
+			Вот ссылка на наш <a href="https://dolika.ru">сайт</a>.`,
+		}, tele.ModeHTML)
+	})
 }
