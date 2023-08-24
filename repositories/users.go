@@ -131,7 +131,7 @@ func NewUserRepository(ydb *ydb.Driver, log *zap.Logger) (*UserRepository, error
 func (r *UserRepository) GetById(ctx context.Context, userID int64) (*User, error) {
 	defer tracer.Trace("UserRepository::GetById")()
 	var user User
-	if err := (*r.DB).Table().Do(ctx, func(ctx context.Context, s table.Session) error {
+	if err := r.DB.Table().Do(ctx, func(ctx context.Context, s table.Session) error {
 		defer tracer.Trace("UserRepository::GetById::Do")()
 		_, res, err := s.Execute(ctx, table.DefaultTxControl(),
 			"DECLARE $id AS Int64;"+
