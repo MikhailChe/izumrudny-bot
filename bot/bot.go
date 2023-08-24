@@ -26,10 +26,11 @@ func NewBot(log *zap.Logger,
 	houses func() repositories.THouses,
 	groupChats func() repositories.TGroupChats,
 	updateLogRepository *repositories.UpdateLogger,
+	telegramChatUpserter func(ctx context.Context, chat tele.Chat) error,
 ) (*TBot, error) {
 	var b TBot
 	rand.Seed(time.Now().UnixMicro())
-	b.Init(log, userRepository, houses, groupChats, updateLogRepository)
+	b.Init(log, userRepository, houses, groupChats, updateLogRepository, telegramChatUpserter)
 	return &b, nil
 }
 
@@ -53,6 +54,7 @@ func (b *TBot) Init(
 	houses func() repositories.THouses,
 	groupChats func() repositories.TGroupChats,
 	updateLogRepository *repositories.UpdateLogger,
+	telegramChatUpserter func(ctx context.Context, chat tele.Chat) error,
 ) {
 	defer tracer.Trace("botInit")()
 	var err error
@@ -116,7 +118,11 @@ func (b *TBot) Init(
 		return func(ctx tele.Context) error {
 			defer tracer.Trace("UpsertUsername middleware")()
 			userRepository.UpsertUsername(context.Background(), ctx.Sender().ID, ctx.Sender().Username)
-			return hf(ctx)
+			err := hf(ctx)
+			if err := telegramChatUpserter(context.Background(), *ctx.Chat()); err != nil {
+				log.Error("telegramChatUpserter middleware failed", zap.Error(err))
+			}
+			return err
 		}
 	})
 

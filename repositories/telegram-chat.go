@@ -2,19 +2,14 @@ package repositories
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"math/rand"
-	"time"
 
 	"mikhailche/botcomod/tracer"
 
 	"github.com/ydb-platform/ydb-go-sdk/v3"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
-	"github.com/ydb-platform/ydb-go-sdk/v3/table/result"
-	"github.com/ydb-platform/ydb-go-sdk/v3/table/result/named"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table/types"
-	"go.uber.org/zap"
+	"gopkg.in/telebot.v3"
 )
 
 const upsert_telegram_chat_query = `
@@ -24,19 +19,18 @@ DECLARE $first_name AS Utf8;
 DECLARE $last_name AS Utf8;
 DECLARE $username AS Utf8;
 DECLARE $title AS Utf8;
-DECLARE $is_forum AS Bool;
 
 UPSERT INTO telegram_chat
-	(id, type, first_name, last_name, username, title, is_forum)
+	(id, type, first_name, last_name, username, title)
 VALUES
-	($id, $type, $first_name, $last_name, $username, $title, $is_forum)
+	($id, $type, $first_name, $last_name, $username, $title)
 ;
 `
 
-func UpsertTelegramChat(ydb *ydb.Driver) func (ctx context.Context, chat telebot.Chat)error{
+func UpsertTelegramChat(ydb *ydb.Driver) func(ctx context.Context, chat telebot.Chat) error {
 	defer tracer.Trace("UpsertTelegramChat")()
-	return func (ctx context.Context, chat telebot.Chat)error{
-		return ydb.Table().Do(ctx, func(ctx context.Context, s table.Session)error{
+	return func(ctx context.Context, chat telebot.Chat) error {
+		return ydb.Table().Do(ctx, func(ctx context.Context, s table.Session) error {
 			defer tracer.Trace("UpsertTelegramChat::Do")()
 			_, _, err := s.Execute(
 				ctx,
@@ -44,12 +38,11 @@ func UpsertTelegramChat(ydb *ydb.Driver) func (ctx context.Context, chat telebot
 				upsert_telegram_chat_query,
 				table.NewQueryParameters(
 					table.ValueParam("$id", types.Int64Value(chat.ID)),
-					table.ValueParam("$type", types.Utf8Value(chat.Type)),
-					table.ValueParam("$first_name", types.Utf8Value(chat.FirstName)),
-					table.ValueParam("$last_name", types.Utf8Value(chat.LastName)),
-					table.ValueParam("$username", types.Utf8Value(chat.Username)),
-					table.ValueParam("$title", types.Utf8Value(chat.Title)),
-					table.ValueParam("$is_forum", types.BoolValue(chat.IsForum)),
+					table.ValueParam("$type", types.UTF8Value(string(chat.Type))),
+					table.ValueParam("$first_name", types.UTF8Value(chat.FirstName)),
+					table.ValueParam("$last_name", types.UTF8Value(chat.LastName)),
+					table.ValueParam("$username", types.UTF8Value(chat.Username)),
+					table.ValueParam("$title", types.UTF8Value(chat.Title)),
 				),
 			)
 			if err != nil {
@@ -59,5 +52,3 @@ func UpsertTelegramChat(ydb *ydb.Driver) func (ctx context.Context, chat telebot
 		})
 	}
 }
-
-
