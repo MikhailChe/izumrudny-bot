@@ -1,6 +1,6 @@
 go vet ./... && \
 go fmt ./... && \
-go test ./... || exit 1
+go test -race ./... || exit 1
 TEMPDIR=`mktemp -d` || exit 1
 echo "Created temporary $TEMPDIR" 
 cp -r . $TEMPDIR

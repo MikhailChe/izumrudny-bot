@@ -68,7 +68,7 @@ SELECT * FROM user WHERE id = $id LIMIT 1;`,
 func (r *UserRepository) ByUsername(username string) func(ctx context.Context)(txr Transaction, r result.Result, err error){
 	return func()(txr Transaction, r result.Result, err error){ s.Execute(ctx, table.DefaultTxControl(),
 			`DECLARE $username AS Utf8;
-SELECT * FROM user WHERE username = $username LIMIT 1;`
+SELECT * FROM user WHERE username = $username LIMIT 1;`,
 			table.NewQueryParameters(table.ValueParam("$id", types.Int64Value(userID))),
 		)
 	}

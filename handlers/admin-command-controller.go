@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 
+	"mikhailche/botcomod/repositories"
+	"mikhailche/botcomod/services"
 	"mikhailche/botcomod/tracer"
 
 	tele "gopkg.in/telebot.v3"
@@ -18,7 +20,7 @@ const BotDescription = `Я бот микрорайона Изумрудный Б
 Меня разрабатывают сами жители района на добровольных началах. Если есть предложения - напишите их мне, а я передам разработчикам.
 Зарегистрированные резиденты в скором времени смогут искать друг друга по номеру авто или квартиры.`
 
-func AdminCommandController(mux botMux, adminAuth tele.MiddlewareFunc, userRepository iUserRepository) {
+func AdminCommandController(mux botMux, adminAuth tele.MiddlewareFunc, userRepository *repositories.UserRepository, groupChatService *services.GroupChatService) {
 	mux.Use(adminAuth)
 	mux.Handle("/chatidlink", func(ctx tele.Context) error {
 		defer tracer.Trace("/chatidlink")()
@@ -124,11 +126,50 @@ func AdminCommandController(mux botMux, adminAuth tele.MiddlewareFunc, userRepos
 	})
 
 	mux.Handle("/test", func(ctx tele.Context) error {
-		return ctx.Send(&tele.Photo{
-			File: tele.FromURL("https://cdn1.ozone.ru/s3/multimedia-7/6425618107.jpg"),
-			Caption: `Привет, это <b>долика</b>.
-			
-			Вот ссылка на наш <a href="https://dolika.ru">сайт</a>.`,
-		}, tele.ModeHTML)
+		marshalOrEmpty := func(v any) string {
+			bb, _ := json.MarshalIndent(v, "", "  ")
+			return string(bb)
+		}
+		printChatMember := func(cm *tele.ChatMember, s *strings.Builder) {
+			s.WriteString(marshalOrEmpty(*cm.User))
+			s.WriteRune('\n')
+			s.WriteString(string(cm.Role))
+			s.WriteRune('\n')
+			s.WriteString(marshalOrEmpty(cm.Rights))
+		}
+
+		chats := groupChatService.GroupChats()
+		bot := ctx.Bot()
+		var sb strings.Builder
+		for _, chat := range chats {
+			if chat.TelegramChatID == 0 {
+				continue
+			}
+			sb.WriteString(fmt.Sprintf("Чат %d\n", chat.TelegramChatID))
+			currentGroup, err := bot.ChatByID(chat.TelegramChatID)
+			if err != nil {
+				sb.WriteString(fmt.Sprintf("Не могу получить чат по ID: %v\n", err))
+				continue
+			}
+			admins, err := ctx.Bot().AdminsOf(currentGroup)
+			if err != nil {
+				sb.WriteString(fmt.Sprintf("Не могу получить админов: %v\n", err))
+				continue
+			}
+			sb.WriteString("Админы:\n")
+			for _, admin := range admins {
+				printChatMember(&admin, &sb)
+				sb.WriteRune('\n')
+			}
+			sb.WriteRune('\n')
+			botAsMember, err := ctx.Bot().ChatMemberOf(currentGroup, tele.ChatID(bot.Me.ID))
+			if err != nil {
+				sb.WriteString(fmt.Sprintf("не могу получить информацию о боте в этом чате (бот не добавлен в чат?): %v\n", err))
+				continue
+			}
+			printChatMember(botAsMember, &sb)
+			sb.WriteRune('\n')
+		}
+		return ctx.Send(sb.String(), tele.ModeHTML)
 	})
 }

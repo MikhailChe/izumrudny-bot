@@ -11,6 +11,7 @@ import (
 	markup "mikhailche/botcomod/lib/bot-markup"
 	"mikhailche/botcomod/lib/http"
 	"mikhailche/botcomod/repositories"
+	"mikhailche/botcomod/services"
 	"mikhailche/botcomod/tracer"
 
 	"go.uber.org/zap"
@@ -22,9 +23,9 @@ type TBot struct {
 }
 
 func NewBot(log *zap.Logger,
-	userRepository botUserRepository,
+	userRepository *repositories.UserRepository,
 	houses func() repositories.THouses,
-	groupChats func() repositories.TGroupChats,
+	groupChats *services.GroupChatService,
 	updateLogRepository *repositories.UpdateLogger,
 	telegramChatUpserter func(ctx context.Context, chat tele.Chat) error,
 ) (*TBot, error) {
@@ -34,25 +35,11 @@ func NewBot(log *zap.Logger,
 	return &b, nil
 }
 
-type botUserRepository interface {
-	IsAdmin(ctx context.Context, userID int64) bool
-	UpsertUsername(ctx context.Context, userID int64, username string)
-	IsResident(ctx context.Context, userID int64) bool
-	GetById(ctx context.Context, userID int64) (*repositories.User, error)
-	StartRegistration(ctx context.Context, userID int64, UpdateID int64, houseNumber string, apartment string) (approveCode string, err error)
-	ConfirmRegistration(ctx context.Context, userID int64, event repositories.ConfirmRegistrationEvent) error
-	FailRegistration(ctx context.Context, userID int64, event repositories.FailRegistrationEvent) error
-
-	RegisterCarLicensePlate(ctx context.Context, userID int64, event repositories.RegisterCarLicensePlateEvent) error
-
-	FindByAppartment(ctx context.Context, house string, appartment string) (*repositories.User, error)
-}
-
 func (b *TBot) Init(
 	log *zap.Logger,
-	userRepository botUserRepository,
+	userRepository *repositories.UserRepository,
 	houses func() repositories.THouses,
-	groupChats func() repositories.TGroupChats,
+	groupChats *services.GroupChatService,
 	updateLogRepository *repositories.UpdateLogger,
 	telegramChatUpserter func(ctx context.Context, chat tele.Chat) error,
 ) {
@@ -63,7 +50,7 @@ func (b *TBot) Init(
 		Token:       telegramToken,
 		Synchronous: true,
 		Verbose:     false,
-		Offline:     true,
+		Offline:     false,
 		OnError: func(err error, c tele.Context) {
 			defer tracer.Trace("Telebot::OnError")()
 			if c != nil {
@@ -114,6 +101,27 @@ func (b *TBot) Init(
 		}
 	})
 
+	log.Info("Adding UpsertGroupChat middleware")
+	bot.Use(func(hf tele.HandlerFunc) tele.HandlerFunc {
+		return func(ctx tele.Context) error {
+			defer tracer.Trace("UpsertGroupChat middleware")()
+			log.Info("Running UpsertGroupChat middleware", zap.String("type", string(ctx.Chat().Type)))
+			if ctx.Chat().Type != tele.ChatPrivate {
+				stdctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+				defer cancel()
+				log.Info("Trying to update chat by telegram ID",
+					zap.Int64("telegram_chat_id", ctx.Chat().ID),
+					zap.String("telegram_chat_title", ctx.Chat().Title),
+					zap.String("telegram_chat_type", string(ctx.Chat().Type)),
+				)
+				if err := groupChats.UpdateChatByTelegramId(stdctx, ctx.Chat().ID, ctx.Chat().Title, string(ctx.Chat().Type)); err != nil {
+					log.Error("Cannot update chat by telegram ID", zap.Error(err))
+				}
+			}
+			return hf(ctx)
+		}
+	})
+
 	bot.Use(func(hf tele.HandlerFunc) tele.HandlerFunc {
 		return func(ctx tele.Context) error {
 			defer tracer.Trace("UpsertUsername middleware")()
@@ -144,14 +152,17 @@ func (b *TBot) Init(
 	}
 
 	log.Info("Adding admin command controller")
-	handlers.AdminCommandController(bot.Group(), adminAuthMiddleware, userRepository)
+	handlers.AdminCommandController(bot.Group(), adminAuthMiddleware, userRepository, groupChats)
 
 	log.Info("Adding replay update controller")
 	handlers.ReplayUpdateController(bot.Group(), adminAuthMiddleware, updateLogRepository, bot)
 
-	handlers.StaticDataController(bot.Group())
+	handlers.StaticDataController(bot.Group(), groupChats)
 	log.Info("Adding phones controller")
 	handlers.PhonesController(bot.Group(), &markup.HelpMainMenuBtn, &markup.HelpfulPhonesBtn)
+
+	log.Info("Adding ChatGroupAdmin controller")
+	handlers.ChatGroupAdminController(bot.Group())
 
 	chatsHandler := func(ctx tele.Context) error {
 		defer tracer.Trace("chatsHandler")()
@@ -163,7 +174,7 @@ func (b *TBot) Init(
 			}
 			linkGroup = nil
 		}
-		inviteLinks := groupChats()
+		inviteLinks := groupChats.GroupChats()
 		for i, link := range inviteLinks {
 			if i > 0 && (link.Group == "" || link.Group != inviteLinks[i-1].Group) {
 				dumpMe()
@@ -375,7 +386,17 @@ func (b *TBot) Init(
 	authGroup.Handle("/connect", pmWithResidentsHandler)
 	authGroup.Handle(&markup.PMWithResidentsBtn, pmWithResidentsHandler)
 
-	bot.Handle(tele.OnText, forwardToDeveloper(log))
+	forwardDeveloperHandler := forwardToDeveloper(log.Named("forwardToDeveloper"))
+
+	obsceneFilter := services.NewObsceneFilter(log.Named("obsceneFilter"))
+
+	bot.Handle(tele.OnText, func(ctx tele.Context) error {
+		if ctx.Chat().Type == tele.ChatPrivate {
+			return forwardDeveloperHandler(ctx)
+		}
+		log.Info("Handling anti spam")
+		return manageAntiSpam(log, groupChats, obsceneFilter)(ctx)
+	})
 	bot.Handle(tele.OnMedia, func(ctx tele.Context) error {
 		stdctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
@@ -386,6 +407,6 @@ func (b *TBot) Init(
 		if user.Registration != nil {
 			return registrationService.HandleMediaCreated(user, ctx)
 		}
-		return forwardToDeveloper(log)(ctx)
+		return forwardDeveloperHandler(ctx)
 	})
 }

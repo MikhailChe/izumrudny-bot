@@ -56,7 +56,7 @@ func newApp() *app {
 	housesRepository := repositories.NewHouseRepository(ydb)
 	houseService := services.NewHouseService(housesRepository)
 
-	groupChatRepository := repositories.NewGroupChatRepository(ydb)
+	groupChatRepository := repositories.NewGroupChatRepository(ydb, log.Named("groupChatRepository"))
 	groupChatService := services.NewGroupChatService(groupChatRepository)
 
 	telegramChatUpserter := repositories.UpsertTelegramChat(ydb)
