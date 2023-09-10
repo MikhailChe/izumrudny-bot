@@ -3,7 +3,7 @@ package bot
 import (
 	"context"
 	"fmt"
-	"mikhailche/botcomod/repositories"
+	"mikhailche/botcomod/repository"
 	"mikhailche/botcomod/tracer"
 	"strconv"
 	"time"
@@ -14,8 +14,8 @@ import (
 
 type telegramRegistrator struct {
 	log            *zap.Logger
-	userRepository registratorUserRepository
-	houses         func() repositories.THouses
+	userRepository *repository.UserRepository
+	houses         func() repository.THouses
 	//buttons
 	backBtn         tele.Btn
 	adminApprove    tele.Btn
@@ -25,15 +25,7 @@ type telegramRegistrator struct {
 
 const registrationChatID = -1001860029647
 
-type registratorUserRepository interface {
-	GetById(ctx context.Context, userID int64) (*repositories.User, error)
-
-	StartRegistration(ctx context.Context, userID int64, UpdateID int64, houseNumber string, apartment string) (approveCode string, err error)
-	ConfirmRegistration(ctx context.Context, userID int64, event repositories.ConfirmRegistrationEvent) error
-	FailRegistration(ctx context.Context, userID int64, event repositories.FailRegistrationEvent) error
-}
-
-func newTelegramRegistrator(log *zap.Logger, userRepository registratorUserRepository, houses func() repositories.THouses, backBtn tele.Btn) *telegramRegistrator {
+func newTelegramRegistrator(log *zap.Logger, userRepository *repository.UserRepository, houses func() repository.THouses, backBtn tele.Btn) *telegramRegistrator {
 	markup := &tele.ReplyMarkup{}
 	return &telegramRegistrator{
 		backBtn:         backBtn,
@@ -63,7 +55,7 @@ func (r *telegramRegistrator) HandleAdminApprovedRegistration(ctx tele.Context) 
 	userID, _ := strconv.Atoi(ctx.Args()[0])
 	stdctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	if err := r.userRepository.ConfirmRegistration(stdctx, int64(userID), repositories.ConfirmRegistrationEvent{
+	if err := r.userRepository.ConfirmRegistration(stdctx, int64(userID), repository.ConfirmRegistrationEvent{
 		UpdateID: int64(ctx.Update().ID),
 		WithCode: "квитанция",
 	}); err != nil {
@@ -87,7 +79,7 @@ func (r *telegramRegistrator) HandleAdminFailRegistration(ctx tele.Context) erro
 	userID, _ := strconv.Atoi(ctx.Args()[0])
 	stdctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	if err := r.userRepository.FailRegistration(stdctx, int64(userID), repositories.FailRegistrationEvent{
+	if err := r.userRepository.FailRegistration(stdctx, int64(userID), repository.FailRegistrationEvent{
 		UpdateID: int64(ctx.Update().ID),
 		WithCode: "квитанция",
 	}); err != nil {
@@ -98,7 +90,7 @@ func (r *telegramRegistrator) HandleAdminFailRegistration(ctx tele.Context) erro
 	return err
 }
 
-func (r *telegramRegistrator) HandleMediaCreated(user *repositories.User, ctx tele.Context) error {
+func (r *telegramRegistrator) HandleMediaCreated(user *repository.User, ctx tele.Context) error {
 	if ctx.Message().Photo == nil {
 		return ctx.EditOrReply("Для регистрации нужно отправить фото вашей квитнации за квартиру. Так мы сможем убидеться, что вы являетесь резидентом района.")
 	}
@@ -125,7 +117,7 @@ func (r *telegramRegistrator) HandleMediaCreated(user *repositories.User, ctx te
 func (r *telegramRegistrator) HandleStartRegistration(ctx tele.Context) error {
 	defer tracer.Trace("registerBtn")()
 	stdctx := context.Background()
-	user, err := r.userRepository.GetById(stdctx, ctx.Sender().ID)
+	user, err := r.userRepository.GetUser(stdctx, r.userRepository.ByID(ctx.Sender().ID))
 	if err != nil {
 		return fmt.Errorf("регистрация: %w", err)
 	}
@@ -146,7 +138,7 @@ func (r *telegramRegistrator) HandleStartRegistration(ctx tele.Context) error {
 		return ctx.EditOrReply("Выберите номер дома", chooseHouseMenu)
 	}
 	houseNumber := data[0]
-	var house *repositories.THouse
+	var house *repository.THouse
 	for _, h := range r.houses() {
 		if houseNumber == h.Number {
 			house = &h

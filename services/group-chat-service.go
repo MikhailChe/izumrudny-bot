@@ -2,7 +2,7 @@ package services
 
 import (
 	"context"
-	"mikhailche/botcomod/repositories"
+	repositories "mikhailche/botcomod/repository"
 	"time"
 )
 

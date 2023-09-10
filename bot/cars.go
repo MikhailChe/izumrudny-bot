@@ -3,7 +3,7 @@ package bot
 import (
 	"context"
 	"fmt"
-	"mikhailche/botcomod/repositories"
+	repositories "mikhailche/botcomod/repository"
 
 	tele "gopkg.in/telebot.v3"
 )

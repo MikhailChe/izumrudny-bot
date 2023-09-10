@@ -6,8 +6,8 @@ import (
 
 	"mikhailche/botcomod/bot"
 	"mikhailche/botcomod/logger"
-	"mikhailche/botcomod/repositories"
-	ydbd "mikhailche/botcomod/repositories/ydb"
+	"mikhailche/botcomod/repository"
+	ydbd "mikhailche/botcomod/repository/ydb"
 	"mikhailche/botcomod/services"
 	"mikhailche/botcomod/tracer"
 
@@ -19,7 +19,7 @@ type app struct {
 	db           *ydb.Driver
 	Bot          *bot.TBot
 	Log          *zap.Logger
-	UpdateLogger *repositories.UpdateLogger
+	UpdateLogger *repository.UpdateLogger
 }
 
 var _the_app *app
@@ -48,28 +48,30 @@ func newApp() *app {
 	if err != nil {
 		log.Fatal("Ошибка инициализации YDB в приложении", zap.Error(err))
 	}
-	userRepository, err := repositories.NewUserRepository(ydb, log)
+	userRepository, err := repository.NewUserRepository(ydb, log)
 	if err != nil {
 		log.Fatal("Ошибка инициализации пользовательского репозитория", zap.Error(err))
 	}
 
-	housesRepository := repositories.NewHouseRepository(ydb)
+	housesRepository := repository.NewHouseRepository(ydb)
 	houseService := services.NewHouseService(housesRepository)
 
-	groupChatRepository := repositories.NewGroupChatRepository(ydb, log.Named("groupChatRepository"))
+	groupChatRepository := repository.NewGroupChatRepository(ydb, log.Named("groupChatRepository"))
 	groupChatService := services.NewGroupChatService(groupChatRepository)
 
-	telegramChatUpserter := repositories.UpsertTelegramChat(ydb)
+	telegramChatUpserter := repository.UpsertTelegramChat(ydb)
 
-	updateLogRepository := repositories.NewUpdateLogger(ydb, log.Named("updateLogger"))
+	updateLogRepository := repository.NewUpdateLogger(ydb, log.Named("updateLogger"))
 
 	bot, err := bot.NewBot(
-		log, 
-		userRepository, 
-		houseService.Houses, 
-		groupChatService.GroupChats, 
+		log,
+		userRepository,
+		houseService.Houses,
+		groupChatService,
 		updateLogRepository,
 		telegramChatUpserter,
+		repository.SelectTelegramChatsByUserID(ydb),
+		repository.UpsertTelegramChatToUserMapping(ydb),
 	)
 	if err != nil {
 		log.Fatal("Ошибка инициализации бота", zap.Error(err))
