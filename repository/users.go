@@ -1,4 +1,4 @@
-package repositories
+package repository
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"time"
 
+	"mikhailche/botcomod/lib/errors"
 	"mikhailche/botcomod/tracer"
 
 	"github.com/ydb-platform/ydb-go-sdk/v3"
@@ -128,25 +129,66 @@ func NewUserRepository(ydb *ydb.Driver, log *zap.Logger) (*UserRepository, error
 	return &UserRepository{DB: ydb, log: log}, nil
 }
 
-func (r *UserRepository) GetById(ctx context.Context, userID int64) (*User, error) {
+// SELECT USER by USERNAME AND ID
+
+type getUserOption = func(ctx context.Context, s table.Session) (txr table.Transaction, r result.Result, err error)
+
+func (r *UserRepository) ByID(userID int64) func(ctx context.Context, s table.Session) (txr table.Transaction, r result.Result, err error) {
+	return func(ctx context.Context, s table.Session) (txr table.Transaction, r result.Result, err error) {
+		return s.Execute(ctx, table.DefaultTxControl(),
+			`DECLARE $id AS Int64;
+SELECT * FROM user WHERE id = $id LIMIT 1;`,
+			table.NewQueryParameters(table.ValueParam("$id", types.Int64Value(userID))),
+		)
+	}
+}
+
+func (r *UserRepository) ByUsername(username string) func(ctx context.Context, s table.Session) (txr table.Transaction, r result.Result, err error) {
+	return func(ctx context.Context, s table.Session) (txr table.Transaction, r result.Result, err error) {
+		return s.Execute(ctx, table.DefaultTxControl(),
+			`DECLARE $username AS Utf8;
+SELECT * FROM user WHERE username = $username LIMIT 1;`,
+			table.NewQueryParameters(table.ValueParam("$username", types.UTF8Value(username))),
+		)
+	}
+}
+
+func (r *UserRepository) ApplyEvents(ctx context.Context, user *User) error {
+	defer tracer.Trace("UserRepository::ApplyEvents")
+	return r.DB.Table().Do(ctx, func(ctx context.Context, s table.Session) error {
+		_, res, err := s.Execute(ctx, table.DefaultTxControl(),
+			`DECLARE $id AS Int64;
+SELECT * FROM user_event WHERE user = $id ORDER BY user, timestamp, id;`,
+			table.NewQueryParameters(table.ValueParam("$id", types.Int64Value(user.ID))),
+		)
+		if err != nil {
+			return fmt.Errorf("SELECT user_event [id=%d]: %w", user.ID, err)
+		}
+		defer res.Close()
+		if !res.NextResultSet(ctx) {
+			return fmt.Errorf("не нашел result set для событий пользователя; невалидный запрос?")
+		}
+		for res.NextRow() {
+			var event UserEventRecord
+			if err := event.Scan(res); err != nil {
+				return fmt.Errorf("не смог события пользователя: %w", err)
+			}
+			r.log.Info("Применяю собятие", zap.Any("event", event))
+			event.Event.Apply(user)
+			user.Events = append(user.Events, event)
+		}
+		return errors.ErrorfOrNil(res.Err(), "ApplyEvents [id=%d]", user.ID)
+	})
+}
+
+func (r *UserRepository) GetUser(ctx context.Context, userQueryExecutor getUserOption) (*User, error) {
 	defer tracer.Trace("UserRepository::GetById")()
 	var user User
 	if err := r.DB.Table().Do(ctx, func(ctx context.Context, s table.Session) error {
 		defer tracer.Trace("UserRepository::GetById::Do")()
-		_, res, err := s.Execute(ctx, table.DefaultTxControl(),
-			"DECLARE $id AS Int64;"+
-				"SELECT `id`, `appartments`, `cars`, `is_approved_resident`, `username` "+
-				"FROM `user` "+
-				"WHERE id = $id;"+
-				""+
-				"SELECT `user`, `timestamp`, `id`, `type`, `event` "+
-				"FROM `user_event` "+
-				"WHERE `user` = $id "+
-				"ORDER BY `user`, `timestamp`, `id`;",
-			table.NewQueryParameters(table.ValueParam("$id", types.Int64Value(userID))),
-		)
+		_, res, err := userQueryExecutor(ctx, s)
 		if err != nil {
-			return fmt.Errorf("select user, user_event [%d]: %w", userID, err)
+			return fmt.Errorf("UserRepository::GetUser: %w", err)
 		}
 		defer tracer.Trace("UserRepository::GetById::DoUser")()
 		defer res.Close()
@@ -159,21 +201,7 @@ func (r *UserRepository) GetById(ctx context.Context, userID int64) (*User, erro
 		if err := user.Scan(res); err != nil {
 			return fmt.Errorf("скан пользователя %v: %w", res, err)
 		}
-		defer tracer.Trace("UserRepository::GetById::DoEvents")()
-		if !res.NextResultSet(ctx) {
-			return fmt.Errorf("не нашел result set для событий пользователя")
-		}
-		r.log.Info("Получил список событий пользователя")
-		for res.NextRow() {
-			var event UserEventRecord
-			if err := event.Scan(res); err != nil {
-				return fmt.Errorf("не смог пользовательские события: %w", err)
-			}
-			r.log.Info("Применяю событие", zap.Any("event", event))
-			event.Event.Apply(&user)
-			user.Events = append(user.Events, event)
-		}
-		return res.Err()
+		return r.ApplyEvents(ctx, &user)
 	}, table.WithIdempotent()); err != nil {
 		return nil, err
 	}
@@ -206,7 +234,7 @@ func (r *UserRepository) FindByAppartment(ctx context.Context, house string, app
 		return nil, err
 	}
 	for _, userID := range userIDs {
-		user, err := r.GetById(ctx, userID)
+		user, err := r.GetUser(ctx, r.ByID(userID))
 		if err != nil {
 			return nil, err
 		}
@@ -246,7 +274,7 @@ func (r *UserRepository) UpsertUsername(ctx context.Context, userID int64, usern
 
 func (r *UserRepository) IsResident(ctx context.Context, userID int64) bool {
 	defer tracer.Trace("UserRepository::IsResident")()
-	user, err := r.GetById(ctx, userID)
+	user, err := r.GetUser(ctx, r.ByID(userID))
 	if err != nil {
 		r.log.Error("Проблема определения резидентности", zap.Error(err))
 		return false

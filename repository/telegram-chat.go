@@ -1,4 +1,4 @@
-package repositories
+package repository
 
 import (
 	"context"
@@ -14,7 +14,7 @@ import (
 
 const upsert_telegram_chat_query = `
 DECLARE $id AS Int64;
-DELCARE $type AS Utf8;
+DECLARE $type AS Utf8;
 DECLARE $first_name AS Utf8;
 DECLARE $last_name AS Utf8;
 DECLARE $username AS Utf8;

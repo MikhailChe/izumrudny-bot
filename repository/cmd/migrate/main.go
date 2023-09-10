@@ -3,8 +3,8 @@ package main
 import (
 	"context"
 	"mikhailche/botcomod/logger"
-	"mikhailche/botcomod/repositories"
-	"mikhailche/botcomod/repositories/ydb"
+	repositories "mikhailche/botcomod/repository"
+	"mikhailche/botcomod/repository/ydb"
 
 	"go.uber.org/zap"
 )

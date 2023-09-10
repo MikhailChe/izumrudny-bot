@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"mikhailche/botcomod/repositories"
+	repositories "mikhailche/botcomod/repository"
 	"mikhailche/botcomod/services"
 	"mikhailche/botcomod/tracer"
 
@@ -40,6 +40,14 @@ func AdminCommandController(mux botMux, adminAuth tele.MiddlewareFunc, userRepos
 			return fmt.Errorf("/service SetCommands: %w", err)
 		}
 
+		if err := bot.SetCommands([]tele.Command{
+			{Text: "whois", Description: "Узнать информацию о пользователе"},
+		},
+			tele.CommandScope{Type: tele.CommandScopeAllChatAdmin},
+		); err != nil {
+			return fmt.Errorf("/services SetAdminCommands: %w", err)
+		}
+
 		if _, err := bot.Raw("setMyDescription", map[string]string{
 			"description": BotDescription,
 		}); err != nil {
@@ -63,7 +71,7 @@ func AdminCommandController(mux botMux, adminAuth tele.MiddlewareFunc, userRepos
 				userID = int64(parsedUserID)
 			}
 		}
-		user, err := userRepository.GetById(context.Background(), userID)
+		user, err := userRepository.GetUser(context.Background(), userRepository.ByID(userID))
 		if err != nil {
 			return fmt.Errorf("не могу достать пользователя: %w", err)
 		}

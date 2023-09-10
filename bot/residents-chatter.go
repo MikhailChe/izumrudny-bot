@@ -6,7 +6,7 @@ import (
 	"strconv"
 
 	markup "mikhailche/botcomod/lib/bot-markup"
-	"mikhailche/botcomod/repositories"
+	repositories "mikhailche/botcomod/repository"
 	"mikhailche/botcomod/tracer"
 
 	tele "gopkg.in/telebot.v3"

@@ -1,4 +1,4 @@
-package repositories
+package repository
 
 import (
 	"context"
@@ -77,6 +77,11 @@ type RegisterCarLicensePlateEvent struct {
 
 func (e *RegisterCarLicensePlateEvent) Apply(u *User) {
 	defer tracer.Trace("registerCarLicensePlateEvent::Apply")()
+	for _, car := range u.Cars {
+		if car.LicensePlate == e.LicensePlate {
+			return
+		}
+	}
 	u.Cars = append(u.Cars, Car{LicensePlate: e.LicensePlate})
 }
 
