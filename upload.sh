@@ -6,6 +6,7 @@ echo "Created temporary $TEMPDIR"
 cp -r . $TEMPDIR
 pushd $TEMPDIR
 rm -rf .git
+rm -rf .github
 yc serverless function version create \
   --function-id=d4eld3krf4lqpap8fe2p \
   --entrypoint index.Handler \

@@ -1,40 +1,41 @@
 package bot
 
 import (
+	"context"
 	"fmt"
 
 	"mikhailche/botcomod/tracer"
 
+	tele "github.com/mikhailche/telebot"
 	"go.uber.org/zap"
-	tele "gopkg.in/telebot.v3"
 )
 
 const developerID = 257582730
 
-func forwardToDeveloper(log *zap.Logger) func(ctx tele.Context) error {
-	return func(ctx tele.Context) error {
+func forwardToDeveloper(log *zap.Logger) func(context.Context, tele.Context) error {
+	return func(ctx context.Context, c tele.Context) error {
 		defer tracer.Trace("forwardToDeveloper")()
-		if ctx.Chat().Type != tele.ChatPrivate {
+		if c.Chat().Type != tele.ChatPrivate {
 			return nil
 		}
-		if err := doForwardToDeveloper(ctx); err != nil {
+		if err := doForwardToDeveloper(ctx, c); err != nil {
 			log.Error("Не могу передать разработчику")
-			return ctx.Reply("Не получилось передать сообщение разработчику. Давайте попробуем позже.")
+			return c.Reply("Не получилось передать сообщение разработчику. Давайте попробуем позже.")
 		}
-		return ctx.Reply("Спасибо. Передал разработчику.")
+		return c.Reply("Спасибо. Передал разработчику.")
 	}
 }
 
-func doForwardToDeveloper(ctx tele.Context) error {
+func doForwardToDeveloper(ctx context.Context, c tele.Context) error {
 	defer tracer.Trace("doForwardToDeveloper")()
-	var chat = ctx.Chat()
-	if _, err := ctx.Bot().Send(
+	var chat = c.Chat()
+	if _, err := c.Bot().Send(
 		&tele.Chat{ID: developerID},
 		fmt.Sprintf("Сообщение от клиента [%v]: %v %v @%v", chat.ID, chat.FirstName, chat.LastName, chat.Username),
 	); err != nil {
 		return fmt.Errorf("форвардинг разработчику: %w", err)
 	}
-	return ctx.ForwardTo(&tele.User{ID: developerID})
+	return c.ForwardTo(&tele.User{ID: developerID})
 }
 
 func sendToDeveloper(ctx tele.Context, log *zap.Logger, message string, opts ...any) error {

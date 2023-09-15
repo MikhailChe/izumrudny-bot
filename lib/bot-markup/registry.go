@@ -4,7 +4,7 @@ import (
 	"mikhailche/botcomod/services"
 	"mikhailche/botcomod/tracer"
 
-	tele "gopkg.in/telebot.v3"
+	tele "github.com/mikhailche/telebot"
 )
 
 var (

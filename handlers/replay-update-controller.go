@@ -5,31 +5,31 @@ import (
 	"fmt"
 	"strconv"
 
-	tele "gopkg.in/telebot.v3"
+	"github.com/mikhailche/telebot"
 )
 
 type UpdateProcessor interface {
-	ProcessUpdate(tele.Update)
+	ProcessUpdateCtx(context.Context, telebot.Update) error
 }
 
 type UpdateLogGetter interface {
-	GetByUpdateId(context.Context, uint64) (*tele.Update, error)
+	GetByUpdateId(context.Context, uint64) (*telebot.Update, error)
 }
 
-func ReplayUpdateController(mux botMux, adminAuth tele.MiddlewareFunc, getter UpdateLogGetter, processor UpdateProcessor) {
-	mux.Handle("/replayupdate", func(ctx tele.Context) error {
-		if len(ctx.Args()) == 0 {
-			return ctx.EditOrReply("Укажи ID обновления аргументом к команде")
+func ReplayUpdateController(mux botMux, adminAuth telebot.MiddlewareFunc, getter UpdateLogGetter, processor UpdateProcessor) {
+	mux.Handle("/replayupdate", func(ctx context.Context, c telebot.Context) error {
+		if len(c.Args()) == 0 {
+			return c.EditOrReply("Укажи ID обновления аргументом к команде")
 		}
-		updateID, err := strconv.Atoi(ctx.Args()[0])
+		updateID, err := strconv.Atoi(c.Args()[0])
 		if err != nil {
-			return ctx.EditOrReply(fmt.Sprintf("ID должен быть числовой: %v", err))
+			return c.EditOrReply(fmt.Sprintf("ID должен быть числовой: %v", err))
 		}
 		update, err := getter.GetByUpdateId(context.Background(), uint64(updateID))
 		if err != nil {
-			return ctx.EditOrReply(fmt.Sprintf("Не удалось получить обновление из базы: %v", err))
+			return c.EditOrReply(fmt.Sprintf("Не удалось получить обновление из базы: %v", err))
 		}
-		processor.ProcessUpdate(*update)
-		return ctx.EditOrReply("Наверное, всё удалось, но я точно не знаю")
+		processor.ProcessUpdateCtx(ctx, *update)
+		return c.EditOrReply("Наверное, всё удалось, но я точно не знаю")
 	}, adminAuth)
 }

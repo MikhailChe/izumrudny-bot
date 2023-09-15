@@ -9,13 +9,13 @@ import (
 
 	"mikhailche/botcomod/tracer"
 
+	tele "github.com/mikhailche/telebot"
 	"github.com/ydb-platform/ydb-go-sdk/v3"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table/result"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table/result/named"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table/types"
 	"go.uber.org/zap"
-	tele "gopkg.in/telebot.v3"
 )
 
 type YDBUpdateLogEntry struct {
@@ -74,10 +74,11 @@ func withRetry(f func() error, retryCount tRetryCount, retryDelay time.Duration)
 }
 
 func (l *UpdateLogger) runYDBWorker() {
+	globalCtx := context.Background()
 	go func() {
 		for entry := range l.entries {
 			if err := withRetry(func() error {
-				ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+				ctx, cancel := context.WithTimeout(globalCtx, 500*time.Millisecond)
 				defer cancel()
 				return l.ydbLogUpdateNow(ctx, entry.ID, entry.Update)
 			}, 3*times, time.Second); err != nil {
@@ -91,7 +92,7 @@ func (l *UpdateLogger) ydbLogUpdateNow(ctx context.Context, ID uint64, update st
 	defer tracer.Trace("LogUpdate")()
 	return (*l.db).Table().Do(ctx, func(ctx context.Context, s table.Session) error {
 		defer tracer.Trace("Do upsert updates-log")()
-		_, result, err := s.Execute(ctx,
+		_, res, err := s.Execute(ctx,
 			table.DefaultTxControl(),
 			"DECLARE $timestamp AS Timestamp; "+
 				"DECLARE $id AS Uint64; "+
@@ -105,8 +106,8 @@ func (l *UpdateLogger) ydbLogUpdateNow(ctx context.Context, ID uint64, update st
 				table.ValueParam("$update", types.JSONDocumentValue(update)),
 			),
 		)
-		if result != nil {
-			result.Close()
+		if res != nil {
+			_ = res.Close()
 		}
 		if err != nil {
 			return fmt.Errorf("upser update-log %d: %w", ID, err)

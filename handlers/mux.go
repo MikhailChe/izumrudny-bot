@@ -1,6 +1,6 @@
 package handlers
 
-import tele "gopkg.in/telebot.v3"
+import tele "github.com/mikhailche/telebot"
 
 type botMux interface {
 	Handle(endpoint interface{}, h tele.HandlerFunc, m ...tele.MiddlewareFunc)

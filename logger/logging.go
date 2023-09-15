@@ -2,7 +2,6 @@ package logger
 
 import (
 	"fmt"
-
 	"mikhailche/botcomod/tracer"
 
 	"go.uber.org/zap"

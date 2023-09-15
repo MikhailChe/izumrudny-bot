@@ -6,10 +6,10 @@ import (
 
 	"mikhailche/botcomod/tracer"
 
+	"github.com/mikhailche/telebot"
 	"github.com/ydb-platform/ydb-go-sdk/v3"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table/types"
-	"gopkg.in/telebot.v3"
 )
 
 const upsert_telegram_chat_query = `

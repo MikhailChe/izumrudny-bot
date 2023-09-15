@@ -5,7 +5,7 @@ import (
 	"fmt"
 	repositories "mikhailche/botcomod/repository"
 
-	tele "gopkg.in/telebot.v3"
+	tele "github.com/mikhailche/telebot"
 )
 
 type carsHandler struct {
@@ -26,15 +26,15 @@ func NewCarsHandler(users carsUserRepository, upperMenu *tele.Btn) *carsHandler 
 	return &carsHandler{users: users, upperMenu: upperMenu, confirmPlateMenu: &confirmPlateBtn}
 }
 
-func (c *carsHandler) EntryPoint() tele.Btn {
+func (ch *carsHandler) EntryPoint() tele.Btn {
 	markup := &tele.ReplyMarkup{}
 	return markup.Data("Добавить автомобиль", "add-automoibile")
 }
 
-func (c *carsHandler) Register(bot HandleRegistrator) {
-	ep := c.EntryPoint()
-	bot.Handle(&ep, c.HandleAddCar)
-	bot.Handle(c.confirmPlateMenu, c.ConfirmPlateHandler)
+func (ch *carsHandler) Register(bot HandleRegistrator) {
+	ep := ch.EntryPoint()
+	bot.Handle(&ep, ch.HandleAddCar)
+	bot.Handle(ch.confirmPlateMenu, ch.ConfirmPlateHandler)
 }
 
 func needLetter(plate string) bool {
@@ -74,21 +74,21 @@ func licensePlateHints(plate string) string {
 	return ""
 }
 
-func (c *carsHandler) HandleAddCar(ctx tele.Context) error {
-	var currentPlate = ctx.Args()[0]
+func (ch *carsHandler) HandleAddCar(ctx context.Context, c tele.Context) error {
+	var currentPlate = c.Args()[0]
 	var markup = &tele.ReplyMarkup{}
 	var rows []tele.Row
 	if needLetter(currentPlate) {
 		var letterButtons []tele.Btn
 		for _, letter := range "ABCEHKMOPTXY" {
-			letterButtons = append(letterButtons, markup.Data(string(letter), ctx.Callback().Unique, currentPlate+string(letter)))
+			letterButtons = append(letterButtons, markup.Data(string(letter), c.Callback().Unique, currentPlate+string(letter)))
 		}
 		rows = append(rows, markup.Split(4, letterButtons)...)
 	}
 	if needDigit(currentPlate) {
 		var digitButtons []tele.Btn
 		for _, letter := range "7894561230" {
-			digitButtons = append(digitButtons, markup.Data(string(letter), ctx.Callback().Unique, currentPlate+string(letter)))
+			digitButtons = append(digitButtons, markup.Data(string(letter), c.Callback().Unique, currentPlate+string(letter)))
 		}
 		rows = append(rows, markup.Split(3, digitButtons)...)
 	}
@@ -97,33 +97,33 @@ func (c *carsHandler) HandleAddCar(ctx tele.Context) error {
 		rows = append(rows,
 			markup.Row(
 				markup.Data("✖",
-					ctx.Callback().Unique),
+					c.Callback().Unique),
 				markup.Data("⌫",
-					ctx.Callback().Unique,
+					c.Callback().Unique,
 					string([]rune(currentPlate)[:l-1])),
 			),
 		)
 	}
 	if len(currentPlate) >= 8 {
-		rows = append(rows, markup.Row(markup.Data("✅ Готово", c.confirmPlateMenu.Unique, currentPlate)))
+		rows = append(rows, markup.Row(markup.Data("✅ Готово", ch.confirmPlateMenu.Unique, currentPlate)))
 	}
-	rows = append(rows, markup.Row(*c.upperMenu))
+	rows = append(rows, markup.Row(*ch.upperMenu))
 	markup.Inline(rows...)
-	return ctx.EditOrReply(fmt.Sprintf("Введите номер своего автомобиля: %s\n%s", ctx.Args(), licensePlateHints(currentPlate)), markup)
+	return c.EditOrReply(fmt.Sprintf("Введите номер своего автомобиля: %s\n%s", c.Args(), licensePlateHints(currentPlate)), markup)
 }
 
-func (c *carsHandler) ConfirmPlateHandler(ctx tele.Context) error {
-	if err := c.users.RegisterCarLicensePlate(
+func (ch *carsHandler) ConfirmPlateHandler(ctx context.Context, c tele.Context) error {
+	if err := ch.users.RegisterCarLicensePlate(
 		context.Background(),
-		ctx.Sender().ID,
-		repositories.RegisterCarLicensePlateEvent{UpdateID: int64(ctx.Update().ID), LicensePlate: ctx.Args()[0]},
+		c.Sender().ID,
+		repositories.RegisterCarLicensePlateEvent{UpdateID: int64(c.Update().ID), LicensePlate: c.Args()[0]},
 	); err != nil {
 		return fmt.Errorf("ошибка регистрации авто: %v: %w",
-			ctx.Reply("Ошибка регистрации автомобиля. Попробуйте позже"),
+			c.Reply("Ошибка регистрации автомобиля. Попробуйте позже"),
 			err,
 		)
 	}
 	markup := &tele.ReplyMarkup{}
-	markup.Inline(markup.Row(*c.upperMenu))
-	return ctx.EditOrReply(`Добавили ваш номер автомобиля в базу. Теперь с вами смогут связаться по нему.`)
+	markup.Inline(markup.Row(*ch.upperMenu))
+	return c.EditOrReply(`Добавили ваш номер автомобиля в базу. Теперь с вами смогут связаться по нему.`)
 }

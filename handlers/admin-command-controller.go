@@ -11,7 +11,7 @@ import (
 	"mikhailche/botcomod/services"
 	"mikhailche/botcomod/tracer"
 
-	tele "gopkg.in/telebot.v3"
+	tele "github.com/mikhailche/telebot"
 )
 
 const BotDescription = `Я бот микрорайона Изумрудный Бор. Я подскажу как позвонить в пункт охраны, УК, найти общий чатик и соседские чаты домов. 
@@ -22,15 +22,15 @@ const BotDescription = `Я бот микрорайона Изумрудный Б
 
 func AdminCommandController(mux botMux, adminAuth tele.MiddlewareFunc, userRepository *repositories.UserRepository, groupChatService *services.GroupChatService) {
 	mux.Use(adminAuth)
-	mux.Handle("/chatidlink", func(ctx tele.Context) error {
+	mux.Handle("/chatidlink", func(ctx context.Context, c tele.Context) error {
 		defer tracer.Trace("/chatidlink")()
 		markup := &tele.ReplyMarkup{}
-		markup.Inline(markup.Row(markup.URL("Общаться", fmt.Sprintf("tg://user?id=%s", ctx.Args()[0]))))
-		return ctx.Reply("Ссылка на чат", markup)
+		markup.Inline(markup.Row(markup.URL("Общаться", fmt.Sprintf("tg://user?id=%s", c.Args()[0]))))
+		return c.Reply("Ссылка на чат", markup)
 	})
 
-	mux.Handle("/service", func(ctx tele.Context) error {
-		var bot = ctx.Bot()
+	mux.Handle("/service", func(ctx context.Context, c tele.Context) error {
+		var bot = c.Bot()
 		if err := bot.SetCommands([]tele.Command{
 			{Text: "help", Description: "Справка"},
 			{Text: "chats", Description: "Чаты района"},
@@ -62,11 +62,11 @@ func AdminCommandController(mux botMux, adminAuth tele.MiddlewareFunc, userRepos
 		return nil
 	})
 
-	mux.Handle("/whoami", func(ctx tele.Context) error {
+	mux.Handle("/whoami", func(ctx context.Context, c tele.Context) error {
 		defer tracer.Trace("/whoami")()
-		userID := ctx.Sender().ID
-		if len(ctx.Args()) > 0 && len(ctx.Args()[0]) > 0 {
-			parsedUserID, err := strconv.Atoi(ctx.Args()[0])
+		userID := c.Sender().ID
+		if len(c.Args()) > 0 && len(c.Args()[0]) > 0 {
+			parsedUserID, err := strconv.Atoi(c.Args()[0])
 			if err == nil {
 				userID = int64(parsedUserID)
 			}
@@ -78,28 +78,28 @@ func AdminCommandController(mux botMux, adminAuth tele.MiddlewareFunc, userRepos
 		userRepository.IsResident(context.Background(), userID)
 		userAsJson, _ := json.MarshalIndent(*user, "", "  ")
 		eventsAsJson, _ := json.MarshalIndent(user.Events, "", "  ")
-		return ctx.EditOrReply(fmt.Sprintf("%#v\n\n%v\n\n%v", *user, string(userAsJson), string(eventsAsJson)))
+		return c.EditOrReply(fmt.Sprintf("%#v\n\n%v\n\n%v", *user, string(userAsJson), string(eventsAsJson)))
 	})
 
-	mux.Handle("/manual_register", func(ctx tele.Context) error {
-		if len(ctx.Args()) < 3 {
-			return ctx.EditOrReply("Нужно указать ID пользователя, номер дома и номер квартиры")
+	mux.Handle("/manual_register", func(ctx context.Context, c tele.Context) error {
+		if len(c.Args()) < 3 {
+			return c.EditOrReply("Нужно указать ID пользователя, номер дома и номер квартиры")
 		}
-		userID, err := strconv.ParseInt(ctx.Args()[0], 10, 64)
+		userID, err := strconv.ParseInt(c.Args()[0], 10, 64)
 		if err != nil {
-			return ctx.Reply(fmt.Sprintf("Пользователь неверный: %v", userID))
+			return c.Reply(fmt.Sprintf("Пользователь неверный: %v", userID))
 		}
 
 		approveCode, err := userRepository.StartRegistration(context.Background(),
 			userID,
-			int64(ctx.Update().ID),
-			ctx.Args()[1],
-			ctx.Args()[2])
+			int64(c.Update().ID),
+			c.Args()[1],
+			c.Args()[2])
 		if err != nil {
-			return ctx.Reply(fmt.Sprintf("Ошибка регистрации: %v", err))
+			return c.Reply(fmt.Sprintf("Ошибка регистрации: %v", err))
 		}
 
-		if _, err := ctx.Bot().Send(
+		if _, err := c.Bot().Send(
 			&tele.User{ID: int64(userID)},
 			`Спасибо за регистрацию. 
 Пока что вам доступен раздел со ссылками на камеры видеонаблюдения.
@@ -108,32 +108,32 @@ func AdminCommandController(mux botMux, adminAuth tele.MiddlewareFunc, userRepos
 		); err != nil {
 			return fmt.Errorf("успешная регистраци: %w", err)
 		}
-		return ctx.Reply(fmt.Sprintf("Теперь отправь этот код [%v] в дом %v квартира %v", approveCode, ctx.Args()[1], ctx.Args()[2]))
+		return c.Reply(fmt.Sprintf("Теперь отправь этот код [%v] в дом %v квартира %v", approveCode, c.Args()[1], c.Args()[2]))
 
 	})
 
-	mux.Handle("/reply", func(ctx tele.Context) error {
-		if len(ctx.Args()) <= 1 {
+	mux.Handle("/reply", func(ctx context.Context, c tele.Context) error {
+		if len(c.Args()) <= 1 {
 			return nil
 		}
 
-		id, err := strconv.Atoi(ctx.Args()[0])
+		id, err := strconv.Atoi(c.Args()[0])
 		if err != nil {
 			return fmt.Errorf(
 				"парсинг id пользователья для ответа: %v: %w",
-				ctx.Reply(fmt.Sprintf("Не получилось: %v", err)),
+				c.Reply(fmt.Sprintf("Не получилось: %v", err)),
 				err,
 			)
 		}
-		message := strings.Join(ctx.Args()[1:], " ")
-		_, err = ctx.Bot().Send(&tele.User{ID: int64(id)}, message)
+		message := strings.Join(c.Args()[1:], " ")
+		_, err = c.Bot().Send(&tele.User{ID: int64(id)}, message)
 		if err != nil {
 			return fmt.Errorf("/reply пользователю: %w", err)
 		}
 		return nil
 	})
 
-	mux.Handle("/test", func(ctx tele.Context) error {
+	mux.Handle("/test", func(ctx context.Context, c tele.Context) error {
 		marshalOrEmpty := func(v any) string {
 			bb, _ := json.MarshalIndent(v, "", "  ")
 			return string(bb)
@@ -147,7 +147,7 @@ func AdminCommandController(mux botMux, adminAuth tele.MiddlewareFunc, userRepos
 		}
 
 		chats := groupChatService.GroupChats()
-		bot := ctx.Bot()
+		bot := c.Bot()
 		var sb strings.Builder
 		for _, chat := range chats {
 			if chat.TelegramChatID == 0 {
@@ -159,7 +159,7 @@ func AdminCommandController(mux botMux, adminAuth tele.MiddlewareFunc, userRepos
 				sb.WriteString(fmt.Sprintf("Не могу получить чат по ID: %v\n", err))
 				continue
 			}
-			admins, err := ctx.Bot().AdminsOf(currentGroup)
+			admins, err := c.Bot().AdminsOf(currentGroup)
 			if err != nil {
 				sb.WriteString(fmt.Sprintf("Не могу получить админов: %v\n", err))
 				continue
@@ -170,7 +170,7 @@ func AdminCommandController(mux botMux, adminAuth tele.MiddlewareFunc, userRepos
 				sb.WriteRune('\n')
 			}
 			sb.WriteRune('\n')
-			botAsMember, err := ctx.Bot().ChatMemberOf(currentGroup, tele.ChatID(bot.Me.ID))
+			botAsMember, err := c.Bot().ChatMemberOf(currentGroup, tele.ChatID(bot.Me.ID))
 			if err != nil {
 				sb.WriteString(fmt.Sprintf("не могу получить информацию о боте в этом чате (бот не добавлен в чат?): %v\n", err))
 				continue
@@ -178,6 +178,6 @@ func AdminCommandController(mux botMux, adminAuth tele.MiddlewareFunc, userRepos
 			printChatMember(botAsMember, &sb)
 			sb.WriteRune('\n')
 		}
-		return ctx.Send(sb.String(), tele.ModeHTML)
+		return c.Send(sb.String(), tele.ModeHTML)
 	})
 }

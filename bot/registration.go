@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"time"
 
+	tele "github.com/mikhailche/telebot"
 	"go.uber.org/zap"
-	tele "gopkg.in/telebot.v3"
 )
 
 type telegramRegistrator struct {
@@ -51,42 +51,42 @@ func (r *telegramRegistrator) Register(bot HandleRegistrator) {
 	bot.Handle(&r.adminFail, r.HandleAdminFailRegistration)
 }
 
-func (r *telegramRegistrator) HandleAdminApprovedRegistration(ctx tele.Context) error {
-	userID, _ := strconv.Atoi(ctx.Args()[0])
-	stdctx, cancel := context.WithTimeout(context.Background(), time.Second)
+func (r *telegramRegistrator) HandleAdminApprovedRegistration(ctx context.Context, c tele.Context) error {
+	userID, _ := strconv.Atoi(c.Args()[0])
+	ctx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
-	if err := r.userRepository.ConfirmRegistration(stdctx, int64(userID), repository.ConfirmRegistrationEvent{
-		UpdateID: int64(ctx.Update().ID),
+	if err := r.userRepository.ConfirmRegistration(ctx, int64(userID), repository.ConfirmRegistrationEvent{
+		UpdateID: int64(c.Update().ID),
 		WithCode: "квитанция",
 	}); err != nil {
 		return fmt.Errorf("HandleAdminApprovedRegistration: %w", err)
 	}
-	ctx.EditOrReply(ctx.Message().Text + "\nЗавершили регистрацию")
-	_, err := ctx.Bot().Send(&tele.User{ID: int64(userID)}, "Регистрация завершена. Теперь вам доступен раздел для резидентов.\n/help")
+	c.EditOrReply(c.Message().Text + "\nЗавершили регистрацию")
+	_, err := c.Bot().Send(&tele.User{ID: int64(userID)}, "Регистрация завершена. Теперь вам доступен раздел для резидентов.\n/help")
 	return err
 }
 
-func (r *telegramRegistrator) HandleAdminDisapprovedRegistration(ctx tele.Context) error {
-	userID, _ := strconv.Atoi(ctx.Args()[0])
-	ctx.EditOrReply(ctx.Message().Text + "\nПопросили прислать заново")
-	_, err := ctx.Bot().Send(
+func (r *telegramRegistrator) HandleAdminDisapprovedRegistration(ctx context.Context, c tele.Context) error {
+	userID, _ := strconv.Atoi(c.Args()[0])
+	c.EditOrReply(c.Message().Text + "\nПопросили прислать заново")
+	_, err := c.Bot().Send(
 		&tele.User{ID: int64(userID)},
 		"Регистрация не завершена. Кажется, есть проблемы с фото. Попробуйте сделать более четкое фото. Адрес и номер квартиры должен быть читаем.")
 	return err
 }
 
-func (r *telegramRegistrator) HandleAdminFailRegistration(ctx tele.Context) error {
-	userID, _ := strconv.Atoi(ctx.Args()[0])
-	stdctx, cancel := context.WithTimeout(context.Background(), time.Second)
+func (r *telegramRegistrator) HandleAdminFailRegistration(ctx context.Context, c tele.Context) error {
+	userID, _ := strconv.Atoi(c.Args()[0])
+	ctx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
-	if err := r.userRepository.FailRegistration(stdctx, int64(userID), repository.FailRegistrationEvent{
-		UpdateID: int64(ctx.Update().ID),
+	if err := r.userRepository.FailRegistration(ctx, int64(userID), repository.FailRegistrationEvent{
+		UpdateID: int64(c.Update().ID),
 		WithCode: "квитанция",
 	}); err != nil {
 		return fmt.Errorf("HandleAdminFailRegistration: %w", err)
 	}
-	ctx.EditOrReply(ctx.Message().Text + "\nПровалили регистрацию")
-	_, err := ctx.Bot().Send(&tele.User{ID: int64(userID)}, "Регистрация провалена. Квартира в квитанции не сходится с квартирой, указанной при регистрации.")
+	c.EditOrReply(c.Message().Text + "\nПровалили регистрацию")
+	_, err := c.Bot().Send(&tele.User{ID: int64(userID)}, "Регистрация провалена. Квартира в квитанции не сходится с квартирой, указанной при регистрации.")
 	return err
 }
 
@@ -114,19 +114,18 @@ func (r *telegramRegistrator) HandleMediaCreated(user *repository.User, ctx tele
 		markup)
 }
 
-func (r *telegramRegistrator) HandleStartRegistration(ctx tele.Context) error {
+func (r *telegramRegistrator) HandleStartRegistration(ctx context.Context, c tele.Context) error {
 	defer tracer.Trace("registerBtn")()
-	stdctx := context.Background()
-	user, err := r.userRepository.GetUser(stdctx, r.userRepository.ByID(ctx.Sender().ID))
+	user, err := r.userRepository.GetUser(ctx, r.userRepository.ByID(c.Sender().ID))
 	if err != nil {
 		return fmt.Errorf("регистрация: %w", err)
 	}
 	if user.Registration != nil {
-		return ctx.EditOrReply(
+		return c.EditOrReply(
 			`Регистрация уже началась. Для завершение регистрации отправьте фотографию вашей квитанции за комуналку. Так мы сможем убедиться, что вы являетесь резидентом района.`,
 		)
 	}
-	data := ctx.Args()
+	data := c.Args()
 	if len(data) == 0 || len(data) == 1 && data[0] == "" {
 		chooseHouseMenu := &tele.ReplyMarkup{}
 		var rows []tele.Row
@@ -135,7 +134,7 @@ func (r *telegramRegistrator) HandleStartRegistration(ctx tele.Context) error {
 		}
 		rows = append(rows, chooseHouseMenu.Row(r.backBtn))
 		chooseHouseMenu.Inline(rows...)
-		return ctx.EditOrReply("Выберите номер дома", chooseHouseMenu)
+		return c.EditOrReply("Выберите номер дома", chooseHouseMenu)
 	}
 	houseNumber := data[0]
 	var house *repository.THouse
@@ -146,7 +145,7 @@ func (r *telegramRegistrator) HandleStartRegistration(ctx tele.Context) error {
 		}
 	}
 	if house == nil {
-		return ctx.EditOrReply("Что-то пошло не по плану")
+		return c.EditOrReply("Что-то пошло не по плану")
 	}
 	// Доступен номер дома
 	if len(data) == 1 {
@@ -163,11 +162,11 @@ func (r *telegramRegistrator) HandleStartRegistration(ctx tele.Context) error {
 		}
 		rows = append(rows, chooseAppartmentRangeMenu.Row(r.backBtn))
 		chooseAppartmentRangeMenu.Inline(rows...)
-		return ctx.EditOrReply("🏠 Дом "+house.Number+". Выберите номер квартиры", chooseAppartmentRangeMenu)
+		return c.EditOrReply("🏠 Дом "+house.Number+". Выберите номер квартиры", chooseAppartmentRangeMenu)
 	}
 	appartmentRangeMin, err := strconv.Atoi(data[1])
 	if err != nil {
-		return ctx.EditOrReply("Что-то пошло не по плану")
+		return c.EditOrReply("Что-то пошло не по плану")
 	}
 	// Доступен диапазон квартир
 	if len(data) == 2 {
@@ -190,11 +189,11 @@ func (r *telegramRegistrator) HandleStartRegistration(ctx tele.Context) error {
 		}
 		rows = append(rows, chooseAppartmentMenu.Row(r.backBtn))
 		chooseAppartmentMenu.Inline(rows...)
-		return ctx.EditOrReply("🏠 Дом "+house.Number+". Выберите номер квартиры", chooseAppartmentMenu)
+		return c.EditOrReply("🏠 Дом "+house.Number+". Выберите номер квартиры", chooseAppartmentMenu)
 	}
 	appartmentNumber, err := strconv.Atoi(data[2])
 	if err != nil {
-		return ctx.EditOrReply("Что-то пошло не по плану")
+		return c.EditOrReply("Что-то пошло не по плану")
 	}
 	if len(data) == 3 {
 		confirmMenu := &tele.ReplyMarkup{}
@@ -204,7 +203,7 @@ func (r *telegramRegistrator) HandleStartRegistration(ctx tele.Context) error {
 			confirmMenu.Row(confirmMenu.Data("❌ Неверный номер дома", r.EntryPoint().Unique)),
 			confirmMenu.Row(r.backBtn),
 		)
-		return ctx.EditOrReply(fmt.Sprintf(`Давайте проверим, что всё верно.
+		return c.EditOrReply(fmt.Sprintf(`Давайте проверим, что всё верно.
 🏠 Дом %s
 🚪 Квартира %d
 Всё верно?`,
@@ -213,9 +212,9 @@ func (r *telegramRegistrator) HandleStartRegistration(ctx tele.Context) error {
 			confirmMenu,
 		)
 	}
-	code, err := r.userRepository.StartRegistration(context.Background(), ctx.Sender().ID, int64(ctx.Update().ID), houseNumber, fmt.Sprint(appartmentNumber))
+	code, err := r.userRepository.StartRegistration(context.Background(), c.Sender().ID, int64(c.Update().ID), houseNumber, fmt.Sprint(appartmentNumber))
 	if err != nil {
-		if serr := ctx.EditOrReply(`Извините, в процессе регистрации произошла ошибка. Исправим как можно скорее.`); serr != nil {
+		if serr := c.EditOrReply(`Извините, в процессе регистрации произошла ошибка. Исправим как можно скорее.`); serr != nil {
 			return serr
 		}
 		return fmt.Errorf("старт регистрации: %w", err)
@@ -223,10 +222,10 @@ func (r *telegramRegistrator) HandleStartRegistration(ctx tele.Context) error {
 
 	markup := &tele.ReplyMarkup{}
 	markup.Inline(markup.Row(r.backBtn))
-	if err := ctx.EditOrReply(`Для завершение регистрации отправьте фотографию вашей квитанции за квартиру. Так мы сможем убедиться, что вы проживаете в квартире и являетесь резидентом района.`, markup); err != nil {
+	if err := c.EditOrReply(`Для завершение регистрации отправьте фотографию вашей квитанции за квартиру. Так мы сможем убедиться, что вы проживаете в квартире и являетесь резидентом района.`, markup); err != nil {
 		return fmt.Errorf("отправка сообщения регистрации: %w", err)
 	}
-	return sendToRegistrationGroup(ctx, r.log, "Новая регистрация. Дом %s квартира %d. Код регистрации: %s", []any{houseNumber, appartmentNumber, code})
+	return sendToRegistrationGroup(c, r.log, "Новая регистрация. Дом %s квартира %d. Код регистрации: %s", []any{houseNumber, appartmentNumber, code})
 }
 
 func sendToRegistrationGroup(ctx tele.Context, log *zap.Logger, message string, args []any, opts ...any) error {

@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/mikhailche/telebot"
 	"go.uber.org/zap"
-	"gopkg.in/telebot.v3"
 )
 
 // HANDLER TO DETECT A USER
@@ -47,28 +47,28 @@ func WhoisHandler(
 
 	}
 
-	whois := func(ctx telebot.Context) error {
-		args := ctx.Args()
+	whois := func(ctx context.Context, c telebot.Context) error {
+		args := c.Args()
 		if len(args) == 0 {
-			return ctx.EditOrReply("Введите имя пользователя или его идентификатор")
+			return c.EditOrReply("Введите имя пользователя или его идентификатор")
 		}
-		stdctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+		ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 		defer cancel()
 
 		var message string
 		var err error
 		userID, err := strconv.Atoi(args[0])
 		if err != nil {
-			message, err = with(stdctx, args[0], userByUsername, byUser)
+			message, err = with(ctx, args[0], userByUsername, byUser)
 		} else {
-			message, err = with(stdctx, int64(userID), userByID, byUser)
+			message, err = with(ctx, int64(userID), userByID, byUser)
 		}
 		if err != nil {
-			ctx.EditOrReply("Ошибка получения информации о пользователе")
+			c.EditOrReply("Ошибка получения информации о пользователе")
 			log.Error("Ошибка получения информации о пользователе", zap.Error(err))
 			return nil
 		}
-		return ctx.EditOrReply(message)
+		return c.EditOrReply(message)
 	}
 	mux.Handle("/whois", whois)
 }

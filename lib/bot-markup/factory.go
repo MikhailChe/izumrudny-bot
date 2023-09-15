@@ -3,7 +3,7 @@ package markup
 import (
 	"strings"
 
-	tele "gopkg.in/telebot.v3"
+	tele "github.com/mikhailche/telebot"
 )
 
 func Markup() *tele.ReplyMarkup {

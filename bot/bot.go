@@ -14,8 +14,8 @@ import (
 	"mikhailche/botcomod/services"
 	"mikhailche/botcomod/tracer"
 
+	tele "github.com/mikhailche/telebot"
 	"go.uber.org/zap"
-	tele "gopkg.in/telebot.v3"
 )
 
 type TBot struct {
@@ -85,56 +85,56 @@ func (b *TBot) Init(
 	b.Bot = bot
 
 	bot.Use(func(hf tele.HandlerFunc) tele.HandlerFunc {
-		return func(ctx tele.Context) error {
+		return func(ctx context.Context, c tele.Context) error {
 			defer tracer.Trace("TraceMiddleware")()
-			return hf(ctx)
+			return hf(ctx, c)
 		}
 	})
 
 	bot.Use(func(hf tele.HandlerFunc) tele.HandlerFunc {
-		return func(ctx tele.Context) error {
+		return func(ctx context.Context, c tele.Context) error {
 			defer tracer.Trace("RecoverMiddleware")()
 			defer func() {
 				defer tracer.Trace("RecoverMiddleware::defer")()
 				if r := recover(); r != nil {
 					log.WithOptions(zap.AddCallerSkip(3)).Error("Паника", zap.Any("panicObj", r))
-					sendToDeveloper(ctx, log, fmt.Sprintf("Паника\n\n%v\n\n%#v", r, r))
+					sendToDeveloper(c, log, fmt.Sprintf("Паника\n\n%v\n\n%#v", r, r))
 				}
 			}()
-			return hf(ctx)
+			return hf(ctx, c)
 		}
 	})
 
 	log.Info("Adding UpsertGroupChat middleware")
 	bot.Use(func(hf tele.HandlerFunc) tele.HandlerFunc {
-		return func(ctx tele.Context) error {
+		return func(ctx context.Context, c tele.Context) error {
 			defer tracer.Trace("UpsertGroupChat middleware")()
-			log.Info("Running UpsertGroupChat middleware", zap.String("type", string(ctx.Chat().Type)))
-			if ctx.Chat().Type != tele.ChatPrivate {
-				stdctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+			log.Info("Running UpsertGroupChat middleware", zap.String("type", string(c.Chat().Type)))
+			if c.Chat().Type != tele.ChatPrivate {
+				ctx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
 				defer cancel()
 				log.Info("Trying to update chat by telegram ID",
-					zap.Int64("telegram_chat_id", ctx.Chat().ID),
-					zap.String("telegram_chat_title", ctx.Chat().Title),
-					zap.String("telegram_chat_type", string(ctx.Chat().Type)),
+					zap.Int64("telegram_chat_id", c.Chat().ID),
+					zap.String("telegram_chat_title", c.Chat().Title),
+					zap.String("telegram_chat_type", string(c.Chat().Type)),
 				)
-				if err := groupChats.UpdateChatByTelegramId(stdctx, ctx.Chat().ID, ctx.Chat().Title, string(ctx.Chat().Type)); err != nil {
+				if err := groupChats.UpdateChatByTelegramId(ctx, c.Chat().ID, c.Chat().Title, string(c.Chat().Type)); err != nil {
 					log.Error("Cannot update chat by telegram ID", zap.Error(err))
 				}
 			}
-			return hf(ctx)
+			return hf(ctx, c)
 		}
 	})
 
 	bot.Use(func(hf tele.HandlerFunc) tele.HandlerFunc {
-		return func(ctx tele.Context) error {
+		return func(ctx context.Context, c tele.Context) error {
 			defer tracer.Trace("UpsertUsername middleware")()
-			err := hf(ctx)
-			userRepository.UpsertUsername(context.Background(), ctx.Sender().ID, ctx.Sender().Username)
-			if err := telegramChatUpserter(context.Background(), *ctx.Chat()); err != nil {
+			err := hf(ctx, c)
+			userRepository.UpsertUsername(context.Background(), c.Sender().ID, c.Sender().Username)
+			if err := telegramChatUpserter(context.Background(), *c.Chat()); err != nil {
 				log.Error("telegramChatUpserter middleware failed", zap.Error(err))
 			}
-			if err := chatToUserUpserter(context.Background(), ctx.Chat().ID, ctx.Sender().ID); err != nil {
+			if err := chatToUserUpserter(context.Background(), c.Chat().ID, c.Sender().ID); err != nil {
 				log.Error("telegramChatUpserter middleware failed", zap.Error(err))
 			}
 			return err
@@ -142,17 +142,17 @@ func (b *TBot) Init(
 	})
 
 	bot.Use(func(hf tele.HandlerFunc) tele.HandlerFunc {
-		return func(ctx tele.Context) error {
-			ctx.Respond(&tele.CallbackResponse{})
-			return hf(ctx)
+		return func(ctx context.Context, c tele.Context) error {
+			c.Respond(&tele.CallbackResponse{})
+			return hf(ctx, c)
 		}
 	})
 
 	adminAuthMiddleware := func(hf tele.HandlerFunc) tele.HandlerFunc {
-		return func(ctx tele.Context) error {
+		return func(ctx context.Context, c tele.Context) error {
 			defer tracer.Trace("AdminCommandControllerAuth middleware")()
-			if userRepository.IsAdmin(context.Background(), ctx.Sender().ID) {
-				return hf(ctx)
+			if userRepository.IsAdmin(context.Background(), c.Sender().ID) {
+				return hf(ctx, c)
 			}
 			return nil
 		}
@@ -186,7 +186,7 @@ func (b *TBot) Init(
 		log.Named("whoisHandler"),
 	)
 
-	chatsHandler := func(ctx tele.Context) error {
+	chatsHandler := func(ctx context.Context, c tele.Context) error {
 		defer tracer.Trace("chatsHandler")()
 		var rows []tele.Row
 		var linkGroup []tele.Btn
@@ -212,7 +212,7 @@ func (b *TBot) Init(
 			}
 		}
 		rows = append(rows, markup.Row(markup.HelpMainMenuBtn))
-		return ctx.EditOrSend(
+		return c.EditOrSend(
 			"Вот список известных мне чатов.\n"+
 				"Для вступления в большинство из них требуется подтверждение от администратора чата (🔐).",
 			markup.InlineMarkup(rows...),
@@ -225,15 +225,15 @@ func (b *TBot) Init(
 	registrationService.Register(bot)
 
 	var authMiddleware tele.MiddlewareFunc = func(next tele.HandlerFunc) tele.HandlerFunc {
-		return func(ctx tele.Context) error {
+		return func(ctx context.Context, c tele.Context) error {
 			defer tracer.Trace("AuthMiddleware")()
-			if userRepository.IsResident(context.Background(), ctx.Sender().ID) {
-				return next(ctx)
+			if userRepository.IsResident(context.Background(), c.Sender().ID) {
+				return next(ctx, c)
 			}
 			var rows []tele.Row
 			rows = append(rows, markup.Row(*registrationService.EntryPoint()))
 			rows = append(rows, markup.Row(markup.HelpMainMenuBtn))
-			return ctx.EditOrSend(`Этот раздел только для резидентов изумрудного бора. 
+			return c.EditOrSend(`Этот раздел только для резидентов изумрудного бора. 
 Нажмите клавишу регистрации, чтобы получить доступ. Регистрация может занять от нескольких минут до нескольких дней.
 
 После регистрации вы получите доступ к коду от домофона 🔑, ссылкам на видеокамеры, установленные в районе 📽.
@@ -274,24 +274,24 @@ func (b *TBot) Init(
 		)
 	}
 
-	registrationCheckApproveCode := func(ctx tele.Context, stdctx context.Context, user *repository.User, approveCode string) error {
+	registrationCheckApproveCode := func(c tele.Context, ctx context.Context, user *repository.User, approveCode string) error {
 		if user.Registration == nil {
-			return ctx.EditOrReply("Ошибка регистрации: вы не начинали регистрацию, поэтому не можете её завершить", getResidentsMarkup(ctx))
+			return c.EditOrReply("Ошибка регистрации: вы не начинали регистрацию, поэтому не можете её завершить", getResidentsMarkup(c))
 		}
 		if approveCode == user.Registration.Events.Start.ApproveCode {
 			userRepository.ConfirmRegistration(
-				stdctx,
-				ctx.Sender().ID,
-				repository.ConfirmRegistrationEvent{UpdateID: int64(ctx.Update().ID), WithCode: approveCode},
+				ctx,
+				c.Sender().ID,
+				repository.ConfirmRegistrationEvent{UpdateID: int64(c.Update().ID), WithCode: approveCode},
 			)
-			return ctx.EditOrReply("Спасибо. Регистрация завершена.", getResidentsMarkup(ctx))
+			return c.EditOrReply("Спасибо. Регистрация завершена.", getResidentsMarkup(c))
 		} else {
 			userRepository.FailRegistration(
-				stdctx,
-				ctx.Sender().ID,
-				repository.FailRegistrationEvent{UpdateID: int64(ctx.Update().ID), WithCode: approveCode},
+				ctx,
+				c.Sender().ID,
+				repository.FailRegistrationEvent{UpdateID: int64(c.Update().ID), WithCode: approveCode},
 			)
-			return ctx.EditOrReply(
+			return c.EditOrReply(
 				"Неверный код. Попробуем заново? Процесс такой же: выбираете дом и квартиру и ждёте правильный код на почту.",
 				markup.HelpMenuMarkup(),
 			)
@@ -299,7 +299,7 @@ func (b *TBot) Init(
 	}
 
 	/*
-		handleContinueRegistration := func(ctx tele.Context, stdctx context.Context, user *User) error {
+		handleContinueRegistration := func(c tele.Context, ctx context.Context, user *User) error {
 			defer tracer.Trace("handleContinueRegistration")()
 			if err != nil {
 				return fmt.Errorf("продолжение регистрации: %w", err)
@@ -327,59 +327,59 @@ func (b *TBot) Init(
 				return ctx.EditOrReply("Для завершения регистрации выберите правильный код, который вы нашли у себя в почтовом ящике.\n"+
 					"Если Ваш дом ещё не сдан, то вы можете пользоваться частью сервисов и завершить регистрацию после заселения.", conRegMarkup)
 			}
-			return registrationCheckApproveCode(ctx, stdctx, user, data[0])
+			return registrationCheckApproveCode(c, ctx, user, data[0])
 		}
 	*/
-	handleMaybeRegistration := func(ctx tele.Context, stdctx context.Context, token string) error {
+	handleMaybeRegistration := func(c tele.Context, ctx context.Context, token string) error {
 		var approveToken repository.UserRegistrationApproveToken
 		err := DecodeSignedMessage(token, &approveToken)
 		if err != nil {
 			return err
 		}
-		if approveToken.UserID != ctx.Sender().ID {
-			return ctx.EditOrReply("Этот код регистрации для другого пользователя. Перепутали телефон?", markup.HelpMenuMarkup())
+		if approveToken.UserID != c.Sender().ID {
+			return c.EditOrReply("Этот код регистрации для другого пользователя. Перепутали телефон?", markup.HelpMenuMarkup())
 		}
 
-		user, err := userRepository.GetUser(stdctx, userRepository.ByID(ctx.Sender().ID))
+		user, err := userRepository.GetUser(ctx, userRepository.ByID(c.Sender().ID))
 		if err != nil {
 			return err
 		}
-		return registrationCheckApproveCode(ctx, stdctx, user, approveToken.ApproveCode)
+		return registrationCheckApproveCode(c, ctx, user, approveToken.ApproveCode)
 	}
 
-	bot.Handle("/start", func(ctx tele.Context) error {
+	bot.Handle("/start", func(ctx context.Context, c tele.Context) error {
 		defer tracer.Trace("/start")()
-		if len(ctx.Args()) == 1 && len(ctx.Args()[0]) > 4 {
-			if err := handleMaybeRegistration(ctx, context.Background(), ctx.Args()[0]); err == nil {
+		if len(c.Args()) == 1 && len(c.Args()[0]) > 4 {
+			if err := handleMaybeRegistration(c, context.Background(), c.Args()[0]); err == nil {
 				return nil
 			} else {
 				log.Error("Ошибочная /start регистрация", zap.Error(err))
 			}
 		}
-		return ctx.EditOrReply("Привет! " + handlers.BotDescription + "\nИспользуйте команду /help для вызова меню")
+		return c.EditOrReply("Привет! " + handlers.BotDescription + "\nИспользуйте команду /help для вызова меню")
 	})
 
 	authGroup := bot.Group()
 	authGroup.Use(authMiddleware)
 
-	residentsHandler := func(ctx tele.Context) error {
+	residentsHandler := func(ctx context.Context, c tele.Context) error {
 		defer tracer.Trace("residentsHandler")()
-		return ctx.EditOrSend("Немного полезностей для резидентов", getResidentsMarkup(ctx))
+		return c.EditOrSend("Немного полезностей для резидентов", getResidentsMarkup(c))
 	}
 	authGroup.Handle(&markup.ResidentsBtn, residentsHandler)
 
-	intercomHandlers := func(ctx tele.Context) error {
+	intercomHandlers := func(ctx context.Context, c tele.Context) error {
 		defer tracer.Trace("intercomHandlers")()
-		return ctx.EditOrSend(
+		return c.EditOrSend(
 			"Здесь будет актуальный код для прохода через домофон. Если вы знаете теукщий код - напишите его мне.",
-			getResidentsMarkup(ctx),
+			getResidentsMarkup(c),
 		)
 	}
 	authGroup.Handle(&markup.IntercomCodeBtn, intercomHandlers)
 
-	videoCamerasHandler := func(ctx tele.Context) error {
+	videoCamerasHandler := func(ctx context.Context, c tele.Context) error {
 		defer tracer.Trace("videoCamerasHandler")()
-		return ctx.EditOrSend(`
+		return c.EditOrSend(`
 <a href="https://vs.domru.ru">Площадка 108А</a>
 Логин: <code>ertel-wk-557</code>
 Пароль: <code>uu4rg2x3</code>
@@ -391,7 +391,7 @@ func (b *TBot) Init(
 Для просмотра можно воспользоваться приложением Форпост.
 `,
 			tele.ModeHTML,
-			getResidentsMarkup(ctx))
+			getResidentsMarkup(c))
 	}
 	authGroup.Handle(&markup.VideoCamerasBtn, videoCamerasHandler)
 
@@ -401,9 +401,9 @@ func (b *TBot) Init(
 	}
 
 	residentsChatter.RegisterBotsHandlers(authGroup)
-	pmWithResidentsHandler := func(ctx tele.Context) error {
+	pmWithResidentsHandler := func(ctx context.Context, c tele.Context) error {
 		defer tracer.Trace("pmWithResidentsHandler")()
-		return residentsChatter.HandleChatWithResident(ctx)
+		return residentsChatter.HandleChatWithResident(ctx, c)
 	}
 	authGroup.Handle("/connect", pmWithResidentsHandler)
 	authGroup.Handle(&markup.PMWithResidentsBtn, pmWithResidentsHandler)
@@ -412,23 +412,23 @@ func (b *TBot) Init(
 
 	obsceneFilter := services.NewObsceneFilter(log.Named("obsceneFilter"))
 
-	bot.Handle(tele.OnText, func(ctx tele.Context) error {
-		if ctx.Chat().Type == tele.ChatPrivate {
-			return forwardDeveloperHandler(ctx)
+	bot.Handle(tele.OnText, func(ctx context.Context, c tele.Context) error {
+		if c.Chat().Type == tele.ChatPrivate {
+			return forwardDeveloperHandler(ctx, c)
 		}
 		log.Info("Handling anti spam")
-		return manageAntiSpam(log, groupChats, obsceneFilter)(ctx)
+		return manageAntiSpam(log, groupChats, obsceneFilter)(ctx, c)
 	})
-	bot.Handle(tele.OnMedia, func(ctx tele.Context) error {
-		stdctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	bot.Handle(tele.OnMedia, func(ctx context.Context, c tele.Context) error {
+		ctx, cancel := context.WithTimeout(ctx, time.Second)
 		defer cancel()
-		user, err := userRepository.GetUser(stdctx, userRepository.ByID(int64(ctx.Sender().ID)))
+		user, err := userRepository.GetUser(ctx, userRepository.ByID(int64(c.Sender().ID)))
 		if err != nil {
 			return fmt.Errorf("tele.OnMedia: %w", err)
 		}
 		if user.Registration != nil {
-			return registrationService.HandleMediaCreated(user, ctx)
+			return registrationService.HandleMediaCreated(user, c)
 		}
-		return forwardDeveloperHandler(ctx)
+		return forwardDeveloperHandler(ctx, c)
 	})
 }

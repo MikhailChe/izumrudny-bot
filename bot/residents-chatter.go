@@ -9,7 +9,7 @@ import (
 	repositories "mikhailche/botcomod/repository"
 	"mikhailche/botcomod/tracer"
 
-	tele "gopkg.in/telebot.v3"
+	tele "github.com/mikhailche/telebot"
 )
 
 type ResidentsChatter struct {
@@ -62,7 +62,7 @@ func (r *ResidentsChatter) RegisterBotsHandlers(bot HandleRegistrator) {
 	bot.Handle(&r.denyContact, r.HandleDenyContact)
 }
 
-func (r *ResidentsChatter) HandleChatWithResident(ctx tele.Context) error {
+func (r *ResidentsChatter) HandleChatWithResident(ctx context.Context, c tele.Context) error {
 	defer tracer.Trace("ResidentsChatter::HandleChatWithResident")()
 	var rows []tele.Row
 	var buttons []tele.Btn
@@ -78,7 +78,7 @@ func (r *ResidentsChatter) HandleChatWithResident(ctx tele.Context) error {
 		buttons = nil
 	}
 	rows = append(rows, markup.Row(r.upperMenu))
-	return ctx.EditOrReply("Какие правила: можно связаться с зарегистрированным резидентом. Для этого нужно выбрать номер дома и "+
+	return c.EditOrReply("Какие правила: можно связаться с зарегистрированным резидентом. Для этого нужно выбрать номер дома и "+
 		"номер квартиры (машиноместа). Я отправлю запрос на контакт всем, кто проживает по этому адресу вместе с номером дома и квартирой, в которой проживаете вы. "+
 		"Если запрос будет подтверждён, то я отправлю обоим участникам контактные данные и вы сможете связаться друг с другом.\n\n"+
 		"Итак, с кем хотим связаться?\n"+
@@ -97,16 +97,16 @@ func (r *ResidentsChatter) houseFromContext(number string) repositories.THouse {
 	return repositories.THouse{}
 }
 
-func (r *ResidentsChatter) HandleHouseIsChosen(ctx tele.Context) error {
+func (r *ResidentsChatter) HandleHouseIsChosen(ctx context.Context, c tele.Context) error {
 	defer tracer.Trace("ResidentsChatter::ResidentsChatter")()
-	var house repositories.THouse = r.houseFromContext(ctx.Args()[0])
+	var house repositories.THouse = r.houseFromContext(c.Args()[0])
 	markup := &tele.ReplyMarkup{}
 	var rows []tele.Row
 	{
 		var buttons []tele.Btn
 		for i := house.Rooms.Min; i <= house.Rooms.Max; i += 64 {
 			buttonText := fmt.Sprintf("%d - %d", i, i+64)
-			buttons = append(buttons, markup.Data(buttonText, r.appartmentRangeChosen.Unique, append(ctx.Args(), fmt.Sprint(i))...))
+			buttons = append(buttons, markup.Data(buttonText, r.appartmentRangeChosen.Unique, append(c.Args(), fmt.Sprint(i))...))
 			if len(buttons) > 3 {
 				rows = append(rows, markup.Row(buttons...))
 				buttons = nil
@@ -119,22 +119,22 @@ func (r *ResidentsChatter) HandleHouseIsChosen(ctx tele.Context) error {
 	}
 	rows = append(rows, markup.Row(r.upperMenu))
 	markup.Inline(rows...)
-	return ctx.EditOrReply(fmt.Sprintf("🏠 %s 🏠\nКакая квартира?", house.Number), markup)
+	return c.EditOrReply(fmt.Sprintf("🏠 %s 🏠\nКакая квартира?", house.Number), markup)
 }
 
-func (r *ResidentsChatter) HandleAppartmentRangeChosen(ctx tele.Context) error {
+func (r *ResidentsChatter) HandleAppartmentRangeChosen(ctx context.Context, c tele.Context) error {
 	defer tracer.Trace("ResidentsChatter::HandleAppartmentRangeChosen")()
-	var house repositories.THouse = r.houseFromContext(ctx.Args()[0])
-	appartmentRangeStart, err := strconv.Atoi(ctx.Args()[1])
+	var house repositories.THouse = r.houseFromContext(c.Args()[0])
+	appartmentRangeStart, err := strconv.Atoi(c.Args()[1])
 	if err != nil {
-		return fmt.Errorf("парсинг диапазона квартир для чата резидентов [%v]: %w", ctx.Args()[1], err)
+		return fmt.Errorf("парсинг диапазона квартир для чата резидентов [%v]: %w", c.Args()[1], err)
 	}
 	markup := &tele.ReplyMarkup{}
 	var rows []tele.Row
 	{
 		var buttons []tele.Btn
 		for i := appartmentRangeStart; i <= appartmentRangeStart+64 && i <= house.Rooms.Max; i++ {
-			buttons = append(buttons, markup.Data(fmt.Sprint(i), r.appartmentChosen.Unique, append(ctx.Args(), fmt.Sprint(i))...))
+			buttons = append(buttons, markup.Data(fmt.Sprint(i), r.appartmentChosen.Unique, append(c.Args(), fmt.Sprint(i))...))
 			if i%8 == 0 {
 				rows = append(rows, markup.Row(buttons...))
 				buttons = nil
@@ -147,33 +147,33 @@ func (r *ResidentsChatter) HandleAppartmentRangeChosen(ctx tele.Context) error {
 	}
 	rows = append(rows, markup.Row(r.upperMenu))
 	markup.Inline(rows...)
-	return ctx.EditOrReply(fmt.Sprintf("🏠 %s 🏠\nКакая квартира?", house.Number), markup)
+	return c.EditOrReply(fmt.Sprintf("🏠 %s 🏠\nКакая квартира?", house.Number), markup)
 }
 
-func (r *ResidentsChatter) HandleAppartmentChosen(ctx tele.Context) error {
+func (r *ResidentsChatter) HandleAppartmentChosen(ctx context.Context, c tele.Context) error {
 	defer tracer.Trace("ResidentsChatter::HandleAppartmentChosen")()
-	var house repositories.THouse = r.houseFromContext(ctx.Args()[0])
-	appartment, err := strconv.Atoi(ctx.Args()[2])
+	var house repositories.THouse = r.houseFromContext(c.Args()[0])
+	appartment, err := strconv.Atoi(c.Args()[2])
 	if err != nil {
-		return fmt.Errorf("парсинг номера квартиры для чата с резидентами [%v]: %w", ctx.Args()[2], err)
+		return fmt.Errorf("парсинг номера квартиры для чата с резидентами [%v]: %w", c.Args()[2], err)
 	}
 	markup := &tele.ReplyMarkup{}
 	markup.Inline(
 		markup.Row(
 			markup.Data("❌ Неверно", r.startChat.Unique),
-			markup.Data("✅ Всё ок", r.chatRequestApproved.Unique, ctx.Args()...),
+			markup.Data("✅ Всё ок", r.chatRequestApproved.Unique, c.Args()...),
 		),
 		markup.Row(r.upperMenu),
 	)
-	return ctx.EditOrReply(fmt.Sprintf("Проверим, что всё правильно.\nДом 🏠 %s 🏠\nКвартира🚪 %d 🚪", house.Number, appartment), markup)
+	return c.EditOrReply(fmt.Sprintf("Проверим, что всё правильно.\nДом 🏠 %s 🏠\nКвартира🚪 %d 🚪", house.Number, appartment), markup)
 }
 
-func (r *ResidentsChatter) HandleChatRequestApproved(ctx tele.Context) error {
+func (r *ResidentsChatter) HandleChatRequestApproved(ctx context.Context, c tele.Context) error {
 	defer tracer.Trace("ResidentsChatter::HandleChatRequestApproved")()
-	var house repositories.THouse = r.houseFromContext(ctx.Args()[0])
-	appartment, err := strconv.Atoi(ctx.Args()[2])
+	var house repositories.THouse = r.houseFromContext(c.Args()[0])
+	appartment, err := strconv.Atoi(c.Args()[2])
 	if err != nil {
-		return fmt.Errorf("парсинг номера квартиры для чата с резидентами [%v]: %w", ctx.Args()[2], err)
+		return fmt.Errorf("парсинг номера квартиры для чата с резидентами [%v]: %w", c.Args()[2], err)
 	}
 	markup := &tele.ReplyMarkup{}
 	markup.Inline(markup.Row(r.upperMenu))
@@ -182,7 +182,7 @@ func (r *ResidentsChatter) HandleChatRequestApproved(ctx tele.Context) error {
 		return fmt.Errorf(
 			"не нашел пользователя проживающего в [%v %d]: %w; %v",
 			house.Number, appartment, err,
-			ctx.EditOrReply("Я не нашел никого, зарегистрированного по этому адресу. Придется искать другим способом.", markup),
+			c.EditOrReply("Я не нашел никого, зарегистрированного по этому адресу. Придется искать другим способом.", markup),
 		)
 	}
 	if err != nil {
@@ -194,45 +194,45 @@ func (r *ResidentsChatter) HandleChatRequestApproved(ctx tele.Context) error {
 	sendMyContactMarkup := &tele.ReplyMarkup{}
 	sendMyContactMarkup.Inline(
 		sendMyContactMarkup.Row(
-			sendMyContactMarkup.Data("❌ Нельзя", r.denyContact.Unique, fmt.Sprint(ctx.Sender().ID)),
-			sendMyContactMarkup.Data("✅ Отправить", r.allowContact.Unique, fmt.Sprint(ctx.Sender().ID)),
+			sendMyContactMarkup.Data("❌ Нельзя", r.denyContact.Unique, fmt.Sprint(c.Sender().ID)),
+			sendMyContactMarkup.Data("✅ Отправить", r.allowContact.Unique, fmt.Sprint(c.Sender().ID)),
 		),
 		sendMyContactMarkup.Row(r.upperMenu),
 	)
 
-	if _, err := ctx.Bot().Send(&tele.User{ID: user.ID},
+	if _, err := c.Bot().Send(&tele.User{ID: user.ID},
 		fmt.Sprintf(
 			"С вами хочет связаться %s %s (@%s). Можно ли передать ему ваши контактные данные?",
-			ctx.Sender().FirstName, ctx.Sender().LastName, ctx.Sender().Username,
+			c.Sender().FirstName, c.Sender().LastName, c.Sender().Username,
 		),
 		sendMyContactMarkup,
 	); err != nil {
 		return fmt.Errorf("не отправил запрос на контакт [%d]: %w", user.ID, err)
 	}
 
-	return ctx.EditOrReply(
+	return c.EditOrReply(
 		"Спасибо. Я отправил приглашение зарегистрированым резидентам этой квартиры. Если они согласятся пообщаться, то вы получите уведомление.",
 		markup,
 	)
 }
 
-func (r *ResidentsChatter) HandleAllowContact(ctx tele.Context) error {
+func (r *ResidentsChatter) HandleAllowContact(ctx context.Context, c tele.Context) error {
 	defer tracer.Trace("ResidentsChatter::HandleAllowContact")()
-	recepient, err := strconv.Atoi(ctx.Args()[0])
+	recepient, err := strconv.Atoi(c.Args()[0])
 	if err != nil {
 		return fmt.Errorf("парсинг ID получателя для разрешения контакта [%v]: %w",
-			ctx.Args()[0], err,
+			c.Args()[0], err,
 		)
 	}
 	enjoy := &tele.ReplyMarkup{}
 	enjoy.Inline(
-		enjoy.Row(enjoy.URL("💬 Связаться", fmt.Sprintf("tg://user?id=%d", ctx.Sender().ID))),
+		enjoy.Row(enjoy.URL("💬 Связаться", fmt.Sprintf("tg://user?id=%d", c.Sender().ID))),
 		enjoy.Row(r.upperMenu),
 	)
-	ctx.Bot().Send(&tele.User{ID: int64(recepient)},
+	c.Bot().Send(&tele.User{ID: int64(recepient)},
 		fmt.Sprintf(
 			"Пользователь %s %s (@%s) разрешил поделиться контактом. Общайтесь!",
-			ctx.Sender().FirstName, ctx.Sender().LastName, ctx.Sender().Username,
+			c.Sender().FirstName, c.Sender().LastName, c.Sender().Username,
 		),
 		enjoy,
 	)
@@ -242,12 +242,12 @@ func (r *ResidentsChatter) HandleAllowContact(ctx tele.Context) error {
 		enjoyReceipent.Row(enjoy.URL("💬 Связаться", fmt.Sprintf("tg://user?id=%d", recepient))),
 		enjoy.Row(r.upperMenu),
 	)
-	return ctx.EditOrReply("Отправил ваши контакты.", enjoyReceipent)
+	return c.EditOrReply("Отправил ваши контакты.", enjoyReceipent)
 }
 
-func (r *ResidentsChatter) HandleDenyContact(ctx tele.Context) error {
+func (r *ResidentsChatter) HandleDenyContact(ctx context.Context, c tele.Context) error {
 	defer tracer.Trace("ResidentsChatter::HandleDenyContact")()
-	recepient, err := strconv.Atoi(ctx.Args()[0])
+	recepient, err := strconv.Atoi(c.Args()[0])
 	if err != nil {
 		return fmt.Errorf("парсинг получателя для отказа в контакте: %w", err)
 	}
@@ -255,7 +255,7 @@ func (r *ResidentsChatter) HandleDenyContact(ctx tele.Context) error {
 	enjoy.Inline(
 		enjoy.Row(r.upperMenu),
 	)
-	ctx.Bot().Send(&tele.User{ID: int64(recepient)},
+	c.Bot().Send(&tele.User{ID: int64(recepient)},
 		"Пользователь запретил делаться контактом. Придется сходить к нему пешком.",
 		enjoy,
 	)
@@ -265,5 +265,5 @@ func (r *ResidentsChatter) HandleDenyContact(ctx tele.Context) error {
 		enjoyReceipent.Row(enjoy.URL("💬 Связаться", fmt.Sprintf("tg://user?id=%d", recepient))),
 		enjoy.Row(r.upperMenu),
 	)
-	return ctx.EditOrReply("Ну ладно, возможно там было что-то важное...", enjoyReceipent)
+	return c.EditOrReply("Ну ладно, возможно там было что-то важное...", enjoyReceipent)
 }

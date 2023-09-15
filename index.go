@@ -7,8 +7,8 @@ import (
 	"mikhailche/botcomod/app"
 	"mikhailche/botcomod/tracer"
 
+	"github.com/mikhailche/telebot"
 	"go.uber.org/zap"
-	tele "gopkg.in/telebot.v3"
 )
 
 type LambdaResponse struct {
@@ -38,7 +38,7 @@ func Handler(ctx context.Context, body []byte) (*LambdaResponse, error) {
 	_ = json.Unmarshal([]byte(request.Body), &updateMap)
 	app.UpdateLogger.LogUpdate(ctx, updateMap, request.Body)
 
-	var update tele.Update
+	var update telebot.Update
 	if err := json.Unmarshal([]byte(request.Body), &update); err != nil {
 		app.Log.Error("Запросец", zap.Error(err))
 	}
@@ -48,7 +48,9 @@ func Handler(ctx context.Context, body []byte) (*LambdaResponse, error) {
 	if app.Bot.Bot == nil {
 		panic("nil app.bot.bot")
 	}
-	app.Bot.Bot.ProcessUpdate(update)
+	if err := app.Bot.Bot.ProcessUpdateCtx(ctx, update); err != nil {
+		app.Log.Error("Error processing update", zap.Error(err))
+	}
 	return &LambdaResponse{
 		StatusCode: 200,
 		Body:       "OK",
