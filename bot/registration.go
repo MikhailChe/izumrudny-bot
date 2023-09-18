@@ -3,12 +3,12 @@ package bot
 import (
 	"context"
 	"fmt"
+	"mikhailche/botcomod/lib/tracer.v2"
 	"mikhailche/botcomod/repository"
-	"mikhailche/botcomod/tracer"
 	"strconv"
 	"time"
 
-	tele "github.com/mikhailche/telebot"
+	"github.com/mikhailche/telebot"
 	"go.uber.org/zap"
 )
 
@@ -17,16 +17,16 @@ type telegramRegistrator struct {
 	userRepository *repository.UserRepository
 	houses         func() repository.THouses
 	//buttons
-	backBtn         tele.Btn
-	adminApprove    tele.Btn
-	adminDisapprove tele.Btn
-	adminFail       tele.Btn
+	backBtn         telebot.Btn
+	adminApprove    telebot.Btn
+	adminDisapprove telebot.Btn
+	adminFail       telebot.Btn
 }
 
 const registrationChatID = -1001860029647
 
-func newTelegramRegistrator(log *zap.Logger, userRepository *repository.UserRepository, houses func() repository.THouses, backBtn tele.Btn) *telegramRegistrator {
-	markup := &tele.ReplyMarkup{}
+func newTelegramRegistrator(log *zap.Logger, userRepository *repository.UserRepository, houses func() repository.THouses, backBtn telebot.Btn) *telegramRegistrator {
+	markup := &telebot.ReplyMarkup{}
 	return &telegramRegistrator{
 		backBtn:         backBtn,
 		log:             log,
@@ -38,8 +38,8 @@ func newTelegramRegistrator(log *zap.Logger, userRepository *repository.UserRepo
 	}
 }
 
-func (r *telegramRegistrator) EntryPoint() *tele.Btn {
-	markup := &tele.ReplyMarkup{}
+func (r *telegramRegistrator) EntryPoint() *telebot.Btn {
+	markup := &telebot.ReplyMarkup{}
 	e := markup.Data("📒 Начать регистрацию", "registration")
 	return &e
 }
@@ -51,7 +51,7 @@ func (r *telegramRegistrator) Register(bot HandleRegistrator) {
 	bot.Handle(&r.adminFail, r.HandleAdminFailRegistration)
 }
 
-func (r *telegramRegistrator) HandleAdminApprovedRegistration(ctx context.Context, c tele.Context) error {
+func (r *telegramRegistrator) HandleAdminApprovedRegistration(ctx context.Context, c telebot.Context) error {
 	userID, _ := strconv.Atoi(c.Args()[0])
 	ctx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
@@ -62,20 +62,20 @@ func (r *telegramRegistrator) HandleAdminApprovedRegistration(ctx context.Contex
 		return fmt.Errorf("HandleAdminApprovedRegistration: %w", err)
 	}
 	c.EditOrReply(c.Message().Text + "\nЗавершили регистрацию")
-	_, err := c.Bot().Send(&tele.User{ID: int64(userID)}, "Регистрация завершена. Теперь вам доступен раздел для резидентов.\n/help")
+	_, err := c.Bot().Send(&telebot.User{ID: int64(userID)}, "Регистрация завершена. Теперь вам доступен раздел для резидентов.\n/help")
 	return err
 }
 
-func (r *telegramRegistrator) HandleAdminDisapprovedRegistration(ctx context.Context, c tele.Context) error {
+func (r *telegramRegistrator) HandleAdminDisapprovedRegistration(ctx context.Context, c telebot.Context) error {
 	userID, _ := strconv.Atoi(c.Args()[0])
 	c.EditOrReply(c.Message().Text + "\nПопросили прислать заново")
 	_, err := c.Bot().Send(
-		&tele.User{ID: int64(userID)},
+		&telebot.User{ID: int64(userID)},
 		"Регистрация не завершена. Кажется, есть проблемы с фото. Попробуйте сделать более четкое фото. Адрес и номер квартиры должен быть читаем.")
 	return err
 }
 
-func (r *telegramRegistrator) HandleAdminFailRegistration(ctx context.Context, c tele.Context) error {
+func (r *telegramRegistrator) HandleAdminFailRegistration(ctx context.Context, c telebot.Context) error {
 	userID, _ := strconv.Atoi(c.Args()[0])
 	ctx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
@@ -86,36 +86,37 @@ func (r *telegramRegistrator) HandleAdminFailRegistration(ctx context.Context, c
 		return fmt.Errorf("HandleAdminFailRegistration: %w", err)
 	}
 	c.EditOrReply(c.Message().Text + "\nПровалили регистрацию")
-	_, err := c.Bot().Send(&tele.User{ID: int64(userID)}, "Регистрация провалена. Квартира в квитанции не сходится с квартирой, указанной при регистрации.")
+	_, err := c.Bot().Send(&telebot.User{ID: int64(userID)}, "Регистрация провалена. Квартира в квитанции не сходится с квартирой, указанной при регистрации.")
 	return err
 }
 
-func (r *telegramRegistrator) HandleMediaCreated(user *repository.User, ctx tele.Context) error {
-	if ctx.Message().Photo == nil {
-		return ctx.EditOrReply("Для регистрации нужно отправить фото вашей квитнации за квартиру. Так мы сможем убидеться, что вы являетесь резидентом района.")
+func (r *telegramRegistrator) HandleMediaCreated(ctx context.Context, user *repository.User, c telebot.Context) error {
+	if c.Message().Photo == nil {
+		return c.EditOrReply("Для регистрации нужно отправить фото вашей квитнации за квартиру. Так мы сможем убидеться, что вы являетесь резидентом района.")
 	}
-	ctx.Reply("Спасибо. Мы проверим и сообщим о результате.")
-	markup := &tele.ReplyMarkup{}
+	c.Reply("Спасибо. Мы проверим и сообщим о результате.")
+	markup := &telebot.ReplyMarkup{}
 	markup.Inline(markup.Row(
-		markup.Data(r.adminApprove.Text, r.adminApprove.Unique, fmt.Sprint(ctx.Sender().ID)),
-		markup.Data(r.adminDisapprove.Text, r.adminDisapprove.Unique, fmt.Sprint(ctx.Sender().ID)),
-		markup.Data(r.adminFail.Text, r.adminFail.Unique, fmt.Sprint(ctx.Sender().ID)),
+		markup.Data(r.adminApprove.Text, r.adminApprove.Unique, fmt.Sprint(c.Sender().ID)),
+		markup.Data(r.adminDisapprove.Text, r.adminDisapprove.Unique, fmt.Sprint(c.Sender().ID)),
+		markup.Data(r.adminFail.Text, r.adminFail.Unique, fmt.Sprint(c.Sender().ID)),
 	))
-	if err := ctx.ForwardTo(&tele.Chat{ID: registrationChatID}, markup); err != nil {
+	if err := c.ForwardTo(&telebot.Chat{ID: registrationChatID}, markup); err != nil {
 		return fmt.Errorf("HandleMediaCreated: %w", err)
 	}
-	return sendToRegistrationGroup(ctx, r.log,
+	return sendToRegistrationGroup(ctx, c, r.log,
 		`Фото от нового пользователя: %v %v %v.
 		Регистрация для адреса такой пользователь: %v %v.
 		Сравни с квитанцией. Похоже?`,
 		[]any{
-			ctx.Sender().Username, ctx.Sender().FirstName, ctx.Sender().LastName,
+			c.Sender().Username, c.Sender().FirstName, c.Sender().LastName,
 			user.Registration.Events.Start.HouseNumber, user.Registration.Events.Start.Apartment},
 		markup)
 }
 
-func (r *telegramRegistrator) HandleStartRegistration(ctx context.Context, c tele.Context) error {
-	defer tracer.Trace("registerBtn")()
+func (r *telegramRegistrator) HandleStartRegistration(ctx context.Context, c telebot.Context) error {
+	ctx, span := tracer.Open(ctx, tracer.Named("registerBtn"))
+	defer span.Close()
 	user, err := r.userRepository.GetUser(ctx, r.userRepository.ByID(c.Sender().ID))
 	if err != nil {
 		return fmt.Errorf("регистрация: %w", err)
@@ -127,8 +128,8 @@ func (r *telegramRegistrator) HandleStartRegistration(ctx context.Context, c tel
 	}
 	data := c.Args()
 	if len(data) == 0 || len(data) == 1 && data[0] == "" {
-		chooseHouseMenu := &tele.ReplyMarkup{}
-		var rows []tele.Row
+		chooseHouseMenu := &telebot.ReplyMarkup{}
+		var rows []telebot.Row
 		for _, house := range r.houses() {
 			rows = append(rows, chooseHouseMenu.Row(chooseHouseMenu.Data(house.Number, r.EntryPoint().Unique, house.Number)))
 		}
@@ -149,8 +150,8 @@ func (r *telegramRegistrator) HandleStartRegistration(ctx context.Context, c tel
 	}
 	// Доступен номер дома
 	if len(data) == 1 {
-		chooseAppartmentRangeMenu := &tele.ReplyMarkup{}
-		var rows []tele.Row
+		chooseAppartmentRangeMenu := &telebot.ReplyMarkup{}
+		var rows []telebot.Row
 		for i := house.Rooms.Min; i <= house.Rooms.Max; i += 64 {
 			range_min := i
 			range_max := i + 63
@@ -170,9 +171,9 @@ func (r *telegramRegistrator) HandleStartRegistration(ctx context.Context, c tel
 	}
 	// Доступен диапазон квартир
 	if len(data) == 2 {
-		chooseAppartmentMenu := &tele.ReplyMarkup{}
-		var rows []tele.Row
-		var buttons []tele.Btn
+		chooseAppartmentMenu := &telebot.ReplyMarkup{}
+		var rows []telebot.Row
+		var buttons []telebot.Btn
 
 		for i := appartmentRangeMin; i <= appartmentRangeMin+65 && i <= house.Rooms.Max; i++ {
 			buttons = append(buttons, chooseAppartmentMenu.Data(
@@ -196,7 +197,7 @@ func (r *telegramRegistrator) HandleStartRegistration(ctx context.Context, c tel
 		return c.EditOrReply("Что-то пошло не по плану")
 	}
 	if len(data) == 3 {
-		confirmMenu := &tele.ReplyMarkup{}
+		confirmMenu := &telebot.ReplyMarkup{}
 		confirmMenu.Inline(
 			confirmMenu.Row(confirmMenu.Data("✅ Да, всё верно", r.EntryPoint().Unique, house.Number, fmt.Sprint(appartmentRangeMin), fmt.Sprint(appartmentNumber), "OK")),
 			confirmMenu.Row(confirmMenu.Data("❌ Неверная квартира", r.EntryPoint().Unique, house.Number)),
@@ -220,18 +221,19 @@ func (r *telegramRegistrator) HandleStartRegistration(ctx context.Context, c tel
 		return fmt.Errorf("старт регистрации: %w", err)
 	}
 
-	markup := &tele.ReplyMarkup{}
+	markup := &telebot.ReplyMarkup{}
 	markup.Inline(markup.Row(r.backBtn))
 	if err := c.EditOrReply(`Для завершение регистрации отправьте фотографию вашей квитанции за квартиру. Так мы сможем убедиться, что вы проживаете в квартире и являетесь резидентом района.`, markup); err != nil {
 		return fmt.Errorf("отправка сообщения регистрации: %w", err)
 	}
-	return sendToRegistrationGroup(c, r.log, "Новая регистрация. Дом %s квартира %d. Код регистрации: %s", []any{houseNumber, appartmentNumber, code})
+	return sendToRegistrationGroup(ctx, c, r.log, "Новая регистрация. Дом %s квартира %d. Код регистрации: %s", []any{houseNumber, appartmentNumber, code})
 }
 
-func sendToRegistrationGroup(ctx tele.Context, log *zap.Logger, message string, args []any, opts ...any) error {
-	defer tracer.Trace("sendToRegistrationGroup")()
+func sendToRegistrationGroup(ctx context.Context, c telebot.Context, log *zap.Logger, message string, args []any, opts ...any) error {
+	ctx, span := tracer.Open(ctx, tracer.Named("sendToRegistrationGroup"))
+	defer span.Close()
 	log.Named("регистратор").Info(message, zap.Any("args", args))
-	if _, err := ctx.Bot().Send(&tele.Chat{ID: registrationChatID}, fmt.Sprintf(message, args...), opts...); err != nil {
+	if _, err := c.Bot().Send(&telebot.Chat{ID: registrationChatID}, fmt.Sprintf(message, args...), opts...); err != nil {
 		return fmt.Errorf("сообщение регистратору %v: %w", message, err)
 	}
 	return nil

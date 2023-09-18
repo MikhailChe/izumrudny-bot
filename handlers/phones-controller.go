@@ -3,14 +3,15 @@ package handlers
 import (
 	"context"
 	bm "mikhailche/botcomod/lib/bot-markup"
-	"mikhailche/botcomod/tracer"
+	"mikhailche/botcomod/lib/tracer.v2"
 
-	tele "github.com/mikhailche/telebot"
+	"github.com/mikhailche/telebot"
 )
 
-func PhonesController(mux botMux, helpMainMenuBtn *tele.Btn, helpfulPhonesBtn *tele.Btn) {
-	phonesHandler := func(ctx context.Context, c tele.Context) error {
-		defer tracer.Trace("phonesHandler")()
+func PhonesController(mux botMux, helpMainMenuBtn *telebot.Btn, helpfulPhonesBtn *telebot.Btn) {
+	phonesHandler := func(ctx context.Context, c telebot.Context) error {
+		ctx, span := tracer.Open(ctx, tracer.Named("phonesHandler"))
+		defer span.Close()
 		markup := bm.Markup()
 		markup.Inline(
 			markup.Row(*helpMainMenuBtn),
@@ -20,7 +21,7 @@ func PhonesController(mux botMux, helpMainMenuBtn *tele.Btn, helpfulPhonesBtn *t
 				"🚨 Аварийно-диспетчерская служба <b>+7-343-317-0798</b>\n"+
 				"🧑‍💼👔 Управляющая компания <b>+7-343-283-0555</b>\n\n"+
 				"Если здесь не хватает какого-то важного номера телефона - напишите мне об этом",
-			tele.ModeHTML,
+			telebot.ModeHTML,
 			markup)
 	}
 	mux.Handle(helpfulPhonesBtn, phonesHandler)

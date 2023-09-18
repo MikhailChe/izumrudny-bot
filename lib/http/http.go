@@ -1,14 +1,15 @@
 package http
 
 import (
+	"context"
+	"mikhailche/botcomod/lib/tracer.v2"
 	"net/http"
 	"strings"
-
-	"mikhailche/botcomod/tracer"
 )
 
-func TracedHttpClient(botToken string) *http.Client {
-	defer tracer.Trace("TracedHttpClient")()
+func TracedHttpClient(ctx context.Context, botToken string) *http.Client {
+	ctx, span := tracer.Open(ctx, tracer.Named("TracedHttpClient"))
+	defer span.Close()
 	client := http.Client{
 		Transport: TracedRoundTripper(botToken),
 	}
@@ -26,7 +27,8 @@ func TracedRoundTripper(botToken string) roundTripperFunc {
 	return func(r *http.Request) (*http.Response, error) {
 		url := r.URL.String()
 		url = strings.ReplaceAll(url, botToken, "##")
-		defer tracer.Trace("HTTP::" + url)()
-		return http.DefaultTransport.RoundTrip(r)
+		newctx, span := tracer.Open(r.Context(), tracer.Named("HTTP::"+url))
+		defer span.Close()
+		return http.DefaultTransport.RoundTrip(r.WithContext(newctx))
 	}
 }

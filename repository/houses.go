@@ -3,9 +3,8 @@ package repository
 import (
 	"context"
 	"fmt"
+	"mikhailche/botcomod/lib/tracer.v2"
 	"path"
-
-	"mikhailche/botcomod/tracer"
 
 	"github.com/ydb-platform/ydb-go-sdk/v3"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
@@ -27,8 +26,9 @@ type THouse struct {
 	Rooms        tRoomRange
 }
 
-func (h *THouse) Scan(res result.Result) error {
-	defer tracer.Trace("tHouse::Scan")()
+func (h *THouse) Scan(ctx context.Context, res result.Result) error {
+	ctx, span := tracer.Open(ctx, tracer.Named("tHouse::Scan"))
+	defer span.Close()
 	return res.ScanNamed(
 		named.OptionalWithDefault("id", &h.ID),
 		named.OptionalWithDefault("number", &h.Number),
@@ -40,12 +40,13 @@ func (h *THouse) Scan(res result.Result) error {
 
 type THouses []THouse
 
-func (h *THouses) Scan(res result.Result) error {
-	defer tracer.Trace("tHouses::Scan")()
+func (h *THouses) Scan(ctx context.Context, res result.Result) error {
+	ctx, span := tracer.Open(ctx, tracer.Named("tHouses::Scan"))
+	defer span.Close()
 	var houses THouses
 	for res.NextRow() {
 		var house THouse
-		if err := house.Scan(res); err != nil {
+		if err := house.Scan(ctx, res); err != nil {
 			return fmt.Errorf("чтение домов: %w", err)
 		}
 		houses = append(houses, house)
@@ -63,7 +64,8 @@ func NewHouseRepository(driver *ydb.Driver) *HouseRepository {
 }
 
 func (h *HouseRepository) Init(ctx context.Context) error {
-	defer tracer.Trace("HouseRepository::Init")()
+	ctx, span := tracer.Open(ctx, tracer.Named("HouseRepository::Init"))
+	defer span.Close()
 	return h.DB.Table().Do(ctx, func(ctx context.Context, s table.Session) error {
 		return s.CreateTable(ctx, path.Join(h.DB.Name(), "house"),
 			options.WithColumn("id", types.TypeUint64),
@@ -77,7 +79,8 @@ func (h *HouseRepository) Init(ctx context.Context) error {
 }
 
 func (h *HouseRepository) GetHouses(ctx context.Context) (THouses, error) {
-	defer tracer.Trace("HouseRepository::GetHouses")()
+	ctx, span := tracer.Open(ctx, tracer.Named("HouseRepository::GetHouses"))
+	defer span.Close()
 	var houses THouses
 	if err := h.DB.Table().Do(ctx, func(ctx context.Context, s table.Session) error {
 		_, res, err := s.Execute(ctx, table.DefaultTxControl(), `SELECT * FROM house`, table.NewQueryParameters())
@@ -88,7 +91,7 @@ func (h *HouseRepository) GetHouses(ctx context.Context) (THouses, error) {
 		if !res.NextResultSet(ctx) {
 			return fmt.Errorf("не нашел результатов при чтении домов, а должен был найти хотя бы один")
 		}
-		err = houses.Scan(res)
+		err = houses.Scan(ctx, res)
 		return err
 	}, table.WithIdempotent()); err != nil {
 		return nil, err

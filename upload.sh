@@ -20,7 +20,7 @@ yc serverless function set-scaling-policy \
   --id d4eld3krf4lqpap8fe2p \
   --tag \$latest \
   --zone-instances-limit=1 \
-  --zone-requests-limit=2 \
+  --zone-requests-limit=1 \
   --provisioned-instances-count=0
 popd
 rm -rf $TEMPDIR

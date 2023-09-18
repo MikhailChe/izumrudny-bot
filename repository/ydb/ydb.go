@@ -3,6 +3,7 @@ package ydb
 import (
 	"context"
 	"fmt"
+	"mikhailche/botcomod/lib/tracer.v2"
 	"os"
 	"time"
 
@@ -10,12 +11,11 @@ import (
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
 	yc "github.com/ydb-platform/ydb-go-yc"
 	"go.uber.org/zap"
-
-	"mikhailche/botcomod/tracer"
 )
 
 func ydbOpen(ctx context.Context, log *zap.Logger) (*ydb.Driver, error) {
-	defer tracer.Trace("ydbOpen")()
+	ctx, span := tracer.Open(ctx, tracer.Named("ydbOpen"))
+	defer span.Close()
 	log.Info("Открываю новое YDB соединение")
 	var credOption ydb.Option = yc.WithMetadataCredentials()
 	if ydb_sa_key := os.Getenv("YDB_SA_KEY"); len(ydb_sa_key) > 0 {
@@ -35,7 +35,8 @@ func ydbOpen(ctx context.Context, log *zap.Logger) (*ydb.Driver, error) {
 }
 
 func NewYDBDriverWithPing(ctx context.Context, log *zap.Logger) (**ydb.Driver, error) {
-	defer tracer.Trace("NewYDBDriver")()
+	ctx, span := tracer.Open(ctx, tracer.Named("NewYDBDriver"))
+	defer span.Close()
 	log.Info("Создаю новое YDB соединение")
 	ydbd, err := ydbOpen(ctx, log)
 	if err != nil {
@@ -46,7 +47,8 @@ func NewYDBDriverWithPing(ctx context.Context, log *zap.Logger) (**ydb.Driver, e
 }
 
 func NewYDBDriver(ctx context.Context, log *zap.Logger) (*ydb.Driver, error) {
-	defer tracer.Trace("NewYDBDriver")()
+	ctx, span := tracer.Open(ctx, tracer.Named("NewYDBDriver"))
+	defer span.Close()
 	log.Info("Создаю новое YDB соединение")
 	ydbd, err := ydbOpen(ctx, log)
 	if err != nil {

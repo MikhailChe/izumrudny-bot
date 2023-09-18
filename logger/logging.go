@@ -1,14 +1,16 @@
 package logger
 
 import (
+	"context"
 	"fmt"
-	"mikhailche/botcomod/tracer"
+	"mikhailche/botcomod/lib/tracer.v2"
 
 	"go.uber.org/zap"
 )
 
-func New() (*zap.Logger, error) {
-	defer tracer.Trace("newLogger")()
+func New(ctx context.Context) (*zap.Logger, error) {
+	ctx, span := tracer.Open(ctx, tracer.Named("newLogger"))
+	defer span.Close()
 
 	zapConfig := zap.NewProductionConfig()
 	zapConfig.DisableCaller = false

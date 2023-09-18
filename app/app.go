@@ -2,83 +2,93 @@ package app
 
 import (
 	"context"
+	"github.com/mikhailche/telebot"
+	"mikhailche/botcomod/handlers/middleware"
+	"mikhailche/botcomod/lib/tracer.v2"
 	"sync"
 
 	"mikhailche/botcomod/bot"
 	"mikhailche/botcomod/logger"
 	"mikhailche/botcomod/repository"
-	ydbd "mikhailche/botcomod/repository/ydb"
+	ydbrepodriver "mikhailche/botcomod/repository/ydb"
 	"mikhailche/botcomod/services"
-	"mikhailche/botcomod/tracer"
 
 	"github.com/ydb-platform/ydb-go-sdk/v3"
 	"go.uber.org/zap"
 )
 
-type app struct {
+type App struct {
 	db           *ydb.Driver
 	Bot          *bot.TBot
 	Log          *zap.Logger
 	UpdateLogger *repository.UpdateLogger
 }
 
-var _the_app *app
-var _the_app_mutex sync.Mutex
+var theApp *App
+var theAppMutex sync.Mutex
 
-func APP() *app {
-	defer tracer.Trace("APP")()
-	_the_app_mutex.Lock()
-	defer _the_app_mutex.Unlock()
-	if _the_app == nil {
-		_the_app = newApp()
+func APP(ctx context.Context) *App {
+	ctx, span := tracer.Open(ctx)
+	defer span.Close()
+	theAppMutex.Lock()
+	defer theAppMutex.Unlock()
+	if theApp == nil {
+		theApp = newApp(ctx)
 	}
-	return _the_app
+	return theApp
 }
 
-func newApp() *app {
-	defer tracer.Trace("newApp")()
-	ctx := context.Background()
+func newApp(ctx context.Context) *App {
+	ctx, span := tracer.Open(tracer.Background(ctx))
+	defer span.Close()
 
-	log, err := logger.New()
+	log, err := logger.New(ctx)
 	if err != nil {
 		panic(err)
 	}
 	log.Info("Инициализируем новое приложение. Вот и логгер уже готов.")
-	ydb, err := ydbd.NewYDBDriver(ctx, log)
+	ydbDriver, err := ydbrepodriver.NewYDBDriver(ctx, log)
 	if err != nil {
 		log.Fatal("Ошибка инициализации YDB в приложении", zap.Error(err))
 	}
-	userRepository, err := repository.NewUserRepository(ydb, log)
+	userRepository, err := repository.NewUserRepository(ctx, ydbDriver, log)
 	if err != nil {
 		log.Fatal("Ошибка инициализации пользовательского репозитория", zap.Error(err))
 	}
 
-	housesRepository := repository.NewHouseRepository(ydb)
+	housesRepository := repository.NewHouseRepository(ydbDriver)
 	houseService := services.NewHouseService(housesRepository)
 
-	groupChatRepository := repository.NewGroupChatRepository(ydb, log.Named("groupChatRepository"))
+	groupChatRepository := repository.NewGroupChatRepository(ydbDriver, log.Named("groupChatRepository"))
 	groupChatService := services.NewGroupChatService(groupChatRepository)
 
-	telegramChatUpserter := repository.UpsertTelegramChat(ydb)
+	telegramChatUpserter := repository.UpsertTelegramChat(ctx, ydbDriver)
 
-	updateLogRepository := repository.NewUpdateLogger(ydb, log.Named("updateLogger"))
+	updateLogRepository := repository.NewUpdateLogger(ydbDriver, log.Named("updateLogger"))
 
-	bot, err := bot.NewBot(
+	tBot, err := bot.NewBot(
+		ctx,
 		log,
 		userRepository,
 		houseService.Houses,
 		groupChatService,
 		updateLogRepository,
-		telegramChatUpserter,
-		repository.SelectTelegramChatsByUserID(ydb),
-		repository.UpsertTelegramChatToUserMapping(ydb),
+		repository.SelectTelegramChatsByUserID(ydbDriver),
+		[]telebot.MiddlewareFunc{
+			middleware.TracingMiddleware,
+			middleware.WithYdbTxInContext(ydbDriver, log.Named("ydbSessionMiddleware")),
+			middleware.UpsertGroupChatMiddleware(log.Named("upsertGroupChatMiddleware"), groupChatService),
+			middleware.UpsertUsernameMiddleware(log.Named("upsertUsernameMiddleware"), userRepository, telegramChatUpserter, repository.UpsertTelegramChatToUserMapping(ydbDriver)),
+			middleware.AutoRespondCallback,
+			middleware.RecoverMiddleware(log.Named("recoverMiddleware")),
+		},
 	)
 	if err != nil {
 		log.Fatal("Ошибка инициализации бота", zap.Error(err))
 	}
-	return &app{
-		db:           ydb,
-		Bot:          bot,
+	return &App{
+		db:           ydbDriver,
+		Bot:          tBot,
 		Log:          log,
 		UpdateLogger: updateLogRepository,
 	}

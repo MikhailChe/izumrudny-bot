@@ -3,9 +3,9 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"mikhailche/botcomod/lib/tracer.v2"
 
 	"mikhailche/botcomod/app"
-	"mikhailche/botcomod/tracer"
 
 	"github.com/mikhailche/telebot"
 	"go.uber.org/zap"
@@ -23,34 +23,40 @@ type LambdaRequest struct {
 }
 
 func Handler(ctx context.Context, body []byte) (*LambdaResponse, error) {
-	defer tracer.Trace("Handler")()
-	app := app.APP()
+	ctx, span := tracer.Open(ctx, tracer.Named("Handler"))
+	appInstance := app.APP(ctx)
 	defer func() {
 		if r := recover(); r != nil {
-			app.Log.WithOptions(zap.AddCallerSkip(3)).Error("Паника в верхнем уровне", zap.Any("panicObj", r))
+			appInstance.Log.WithOptions(zap.AddCallerSkip(3)).Error("Паника в верхнем уровне", zap.Any("panicObj", r))
 		}
 	}()
 	var request LambdaRequest
 	if err := json.Unmarshal(body, &request); err != nil {
-		app.Log.Error("Не получилось распарсить запрос", zap.Error(err))
+		appInstance.Log.Error("Не получилось распарсить запрос", zap.Error(err))
 	}
 	var updateMap map[string]any
 	_ = json.Unmarshal([]byte(request.Body), &updateMap)
-	app.UpdateLogger.LogUpdate(ctx, updateMap, request.Body)
+	appInstance.UpdateLogger.LogUpdate(ctx, updateMap, request.Body)
 
 	var update telebot.Update
 	if err := json.Unmarshal([]byte(request.Body), &update); err != nil {
-		app.Log.Error("Запросец", zap.Error(err))
+		appInstance.Log.Error("Запросец", zap.Error(err))
 	}
-	if app.Bot == nil {
-		panic("nil app.bot")
+	if appInstance.Bot == nil {
+		panic("nil appInstance.bot")
 	}
-	if app.Bot.Bot == nil {
-		panic("nil app.bot.bot")
+	if appInstance.Bot.Bot == nil {
+		panic("nil appInstance.bot.bot")
 	}
-	if err := app.Bot.Bot.ProcessUpdateCtx(ctx, update); err != nil {
-		app.Log.Error("Error processing update", zap.Error(err))
+	if err := appInstance.Bot.Bot.ProcessUpdateCtx(ctx, update); err != nil {
+		appInstance.Log.Error("Error processing update", zap.Error(err))
 	}
+
+	span.Close()
+	if chromeTrace, err := span.PrintTrace(); err == nil {
+		appInstance.Log.Debug(string(chromeTrace))
+	}
+
 	return &LambdaResponse{
 		StatusCode: 200,
 		Body:       "OK",

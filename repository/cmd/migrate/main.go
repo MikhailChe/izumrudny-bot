@@ -11,7 +11,7 @@ import (
 
 func main() {
 	ctx := context.Background()
-	log, err := logger.New()
+	log, err := logger.New(ctx)
 	if err != nil {
 		panic(err)
 	}

@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"mikhailche/botcomod/lib/tracer.v2"
 	"time"
 
 	"mikhailche/botcomod/lib/errors"
-	"mikhailche/botcomod/tracer"
 
 	"github.com/ydb-platform/ydb-go-sdk/v3"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
@@ -32,7 +32,6 @@ type Apartment struct {
 type UserApartments []Apartment
 
 func (a *UserApartments) UnmarshalJSON(bb []byte) error {
-	defer tracer.Trace("UserApartments::UnmarshalJSON")()
 	if len(bb) == 0 {
 		return nil
 	}
@@ -47,7 +46,6 @@ func (a *UserApartments) UnmarshalJSON(bb []byte) error {
 type Cars []Car
 
 func (c *Cars) UnmarshalJSON(bb []byte) error {
-	defer tracer.Trace("Cars::UnmarshalJSON")()
 	if len(bb) == 0 {
 		return nil
 	}
@@ -77,8 +75,9 @@ type User struct {
 	Events             []any          `json:"-"`
 }
 
-func (u *User) Scan(res result.Result) error {
-	defer tracer.Trace("User::Scan")()
+func (u *User) Scan(ctx context.Context, res result.Result) error {
+	ctx, span := tracer.Open(ctx, tracer.Named("User::Scan"))
+	defer span.Close()
 	return res.ScanNamed(
 		named.Required("id", &u.ID),
 		named.OptionalWithDefault("appartments", &u.Apartments),
@@ -96,8 +95,9 @@ type UserEventRecord struct {
 	Event     UserEvent
 }
 
-func (u *UserEventRecord) Scan(res result.Result) error {
-	defer tracer.Trace("UserEventRecord::Scan")()
+func (u *UserEventRecord) Scan(ctx context.Context, res result.Result) error {
+	ctx, span := tracer.Open(ctx, tracer.Named("UserEventRecord::Scan"))
+	defer span.Close()
 	var eventBytes []byte
 	if err := res.ScanNamed(
 		named.OptionalWithDefault("user", &u.User),
@@ -108,7 +108,7 @@ func (u *UserEventRecord) Scan(res result.Result) error {
 	); err != nil {
 		return fmt.Errorf("скан UserEventRecord: %w", err)
 	}
-	var event UserEvent = SelectType(u.Type)
+	var event UserEvent = SelectType(ctx, u.Type)
 	if event == nil {
 		return fmt.Errorf("не удалось найти тип для %s", u.Type)
 	}
@@ -124,8 +124,9 @@ type UserRepository struct {
 	log *zap.Logger
 }
 
-func NewUserRepository(ydb *ydb.Driver, log *zap.Logger) (*UserRepository, error) {
-	defer tracer.Trace("NewUserRepository")()
+func NewUserRepository(ctx context.Context, ydb *ydb.Driver, log *zap.Logger) (*UserRepository, error) {
+	ctx, span := tracer.Open(ctx, tracer.Named("NewUserRepository"))
+	defer span.Close()
 	return &UserRepository{DB: ydb, log: log}, nil
 }
 
@@ -154,7 +155,8 @@ SELECT * FROM user WHERE username = $username LIMIT 1;`,
 }
 
 func (r *UserRepository) ApplyEvents(ctx context.Context, user *User) error {
-	defer tracer.Trace("UserRepository::ApplyEvents")
+	ctx, span := tracer.Open(ctx, tracer.Named("UserRepository::ApplyEvents"))
+	defer span.Close()
 	return r.DB.Table().Do(ctx, func(ctx context.Context, s table.Session) error {
 		_, res, err := s.Execute(ctx, table.DefaultTxControl(),
 			`DECLARE $id AS Int64;
@@ -170,11 +172,11 @@ SELECT * FROM user_event WHERE user = $id ORDER BY user, timestamp, id;`,
 		}
 		for res.NextRow() {
 			var event UserEventRecord
-			if err := event.Scan(res); err != nil {
+			if err := event.Scan(ctx, res); err != nil {
 				return fmt.Errorf("не смог события пользователя: %w", err)
 			}
 			r.log.Info("Применяю собятие", zap.Any("event", event))
-			event.Event.Apply(user)
+			event.Event.Apply(ctx, user)
 			user.Events = append(user.Events, event)
 		}
 		return errors.ErrorfOrNil(res.Err(), "ApplyEvents [id=%d]", user.ID)
@@ -182,15 +184,18 @@ SELECT * FROM user_event WHERE user = $id ORDER BY user, timestamp, id;`,
 }
 
 func (r *UserRepository) GetUser(ctx context.Context, userQueryExecutor getUserOption) (*User, error) {
-	defer tracer.Trace("UserRepository::GetById")()
+	ctx, span := tracer.Open(ctx, tracer.Named("UserRepository::GetById"))
+	defer span.Close()
 	var user User
 	if err := r.DB.Table().Do(ctx, func(ctx context.Context, s table.Session) error {
-		defer tracer.Trace("UserRepository::GetById::Do")()
+		ctx, span := tracer.Open(ctx, tracer.Named("UserRepository::GetById::Do"))
+		defer span.Close()
 		_, res, err := userQueryExecutor(ctx, s)
 		if err != nil {
 			return fmt.Errorf("UserRepository::GetUser: %w", err)
 		}
-		defer tracer.Trace("UserRepository::GetById::DoUser")()
+		_, span = tracer.Open(ctx, tracer.Named("UserRepository::GetById::DoUser"))
+		defer span.Close()
 		defer res.Close()
 		if !res.NextResultSet(ctx) {
 			return fmt.Errorf("не нашел result set для пользователя")
@@ -198,7 +203,7 @@ func (r *UserRepository) GetUser(ctx context.Context, userQueryExecutor getUserO
 		if !res.NextRow() {
 			return fmt.Errorf("пользователь не найден")
 		}
-		if err := user.Scan(res); err != nil {
+		if err := user.Scan(ctx, res); err != nil {
 			return fmt.Errorf("скан пользователя %v: %w", res, err)
 		}
 		return r.ApplyEvents(ctx, &user)
@@ -211,7 +216,8 @@ func (r *UserRepository) GetUser(ctx context.Context, userQueryExecutor getUserO
 var ErrNotFound = fmt.Errorf("not found")
 
 func (r *UserRepository) FindByAppartment(ctx context.Context, house string, appartment string) (*User, error) {
-	defer tracer.Trace("UserRepository::FindByAppartment")()
+	ctx, span := tracer.Open(ctx, tracer.Named("UserRepository::FindByAppartment"))
+	defer span.Close()
 	var userIDs []int64
 	if err := (*r.DB).Table().Do(ctx, func(ctx context.Context, s table.Session) error {
 		query := "SELECT `id` FROM `user`;"
@@ -248,9 +254,11 @@ func (r *UserRepository) FindByAppartment(ctx context.Context, house string, app
 }
 
 func (r *UserRepository) UpsertUsername(ctx context.Context, userID int64, username string) {
-	defer tracer.Trace("UserRepository::UpsertUsername")()
+	ctx, span := tracer.Open(ctx, tracer.Named("UserRepository::UpsertUsername"))
+	defer span.Close()
 	if err := (*r.DB).Table().Do(ctx, func(ctx context.Context, s table.Session) error {
-		defer tracer.Trace("Do Upsert user")()
+		ctx, span := tracer.Open(ctx, tracer.Named("Do Upsert user"))
+		defer span.Close()
 		_, _, err := s.Execute(ctx,
 			table.DefaultTxControl(),
 			"DECLARE $id AS Int64; "+
@@ -273,7 +281,8 @@ func (r *UserRepository) UpsertUsername(ctx context.Context, userID int64, usern
 }
 
 func (r *UserRepository) IsResident(ctx context.Context, userID int64) bool {
-	defer tracer.Trace("UserRepository::IsResident")()
+	ctx, span := tracer.Open(ctx, tracer.Named("UserRepository::IsResident"))
+	defer span.Close()
 	user, err := r.GetUser(ctx, r.ByID(userID))
 	if err != nil {
 		r.log.Error("Проблема определения резидентности", zap.Error(err))
@@ -283,12 +292,14 @@ func (r *UserRepository) IsResident(ctx context.Context, userID int64) bool {
 }
 
 func (r *UserRepository) IsAdmin(ctx context.Context, userID int64) bool {
-	defer tracer.Trace("UserRepository::IsAdmin")()
+	ctx, span := tracer.Open(ctx, tracer.Named("UserRepository::IsAdmin"))
+	defer span.Close()
 	return userID == 257582730
 }
 
-func GenerateApproveCode(length int) string {
-	defer tracer.Trace("GenerateApproveCode")()
+func GenerateApproveCode(ctx context.Context, length int) string {
+	ctx, span := tracer.Open(ctx, tracer.Named("GenerateApproveCode"))
+	defer span.Close()
 	var alphabet []rune = []rune("123456789ABCEHKMOPTX")
 	var code []rune
 	for i := 0; i < length; i++ {
@@ -298,12 +309,13 @@ func GenerateApproveCode(length int) string {
 }
 
 func (r *UserRepository) StartRegistration(ctx context.Context, userID int64, updateID int64, houseNumber string, appartment string) (string, error) {
-	defer tracer.Trace("UserRepository::StartRegistration")()
-	const CODE_LENGTH = 5
-	approveCode := GenerateApproveCode(CODE_LENGTH)
+	ctx, span := tracer.Open(ctx, tracer.Named("UserRepository::StartRegistration"))
+	defer span.Close()
+	const CodeLength = 5
+	approveCode := GenerateApproveCode(ctx, CodeLength)
 	var invalidCodes []string
 	for i := 0; i < 5; i++ {
-		invalidCodes = append(invalidCodes, GenerateApproveCode(CODE_LENGTH))
+		invalidCodes = append(invalidCodes, GenerateApproveCode(ctx, CodeLength))
 	}
 	if err := r.LogEvent(ctx, userID, &StartRegistrationEvent{updateID, houseNumber, appartment, approveCode, invalidCodes}); err != nil {
 		return "", fmt.Errorf("регистрация пользователя: %w", err)
@@ -312,7 +324,8 @@ func (r *UserRepository) StartRegistration(ctx context.Context, userID int64, up
 }
 
 func (r *UserRepository) ConfirmRegistration(ctx context.Context, userID int64, event ConfirmRegistrationEvent) error {
-	defer tracer.Trace("UserRepository::ConfirmRegistration")()
+	ctx, span := tracer.Open(ctx, tracer.Named("UserRepository::ConfirmRegistration"))
+	defer span.Close()
 	if err := r.LogEvent(ctx, userID, &event); err != nil {
 		return fmt.Errorf("подтверждение регистрации: %w", err)
 	}
@@ -320,7 +333,8 @@ func (r *UserRepository) ConfirmRegistration(ctx context.Context, userID int64, 
 }
 
 func (r *UserRepository) FailRegistration(ctx context.Context, userID int64, event FailRegistrationEvent) error {
-	defer tracer.Trace("UserRepository::FailRegistration")()
+	ctx, span := tracer.Open(ctx, tracer.Named("UserRepository::FailRegistration"))
+	defer span.Close()
 	if err := r.LogEvent(ctx, userID, &event); err != nil {
 		return fmt.Errorf("проваленная регистрация: %w", err)
 	}
@@ -328,7 +342,8 @@ func (r *UserRepository) FailRegistration(ctx context.Context, userID int64, eve
 }
 
 func (r *UserRepository) RegisterCarLicensePlate(ctx context.Context, userID int64, event RegisterCarLicensePlateEvent) error {
-	defer tracer.Trace("UserRepository::RegisterCarLicensePlate")()
+	ctx, span := tracer.Open(ctx, tracer.Named("UserRepository::RegisterCarLicensePlate"))
+	defer span.Close()
 	if err := r.LogEvent(ctx, userID, &event); err != nil {
 		return fmt.Errorf("провалена регистрация авто: %w", err)
 	}

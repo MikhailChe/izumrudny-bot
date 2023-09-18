@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"mikhailche/botcomod/tracer"
+	"mikhailche/botcomod/lib/tracer.v2"
 	"reflect"
 	"time"
 
@@ -13,7 +13,7 @@ import (
 )
 
 type UserEvent interface {
-	Apply(*User)
+	Apply(context.Context, *User)
 	FQDN() string
 }
 
@@ -25,8 +25,9 @@ type StartRegistrationEvent struct {
 	InvalidCodes []string
 }
 
-func (e *StartRegistrationEvent) Apply(u *User) {
-	defer tracer.Trace("startRegistrationEvent::Apply")()
+func (e *StartRegistrationEvent) Apply(ctx context.Context, u *User) {
+	ctx, span := tracer.Open(ctx, tracer.Named("startRegistrationEvent::Apply"))
+	defer span.Close()
 	u.Registration = &tRegistration{
 		Events: tRegistrationEvents{Start: e},
 	}
@@ -41,8 +42,9 @@ type ConfirmRegistrationEvent struct {
 	WithCode string
 }
 
-func (e *ConfirmRegistrationEvent) Apply(u *User) {
-	defer tracer.Trace("confirmRegistrationEvent::Apply")()
+func (e *ConfirmRegistrationEvent) Apply(ctx context.Context, u *User) {
+	ctx, span := tracer.Open(ctx, tracer.Named("confirmRegistrationEvent::Apply"))
+	defer span.Close()
 	u.Apartments = append(u.Apartments, Apartment{
 		HouseNumber:     u.Registration.Events.Start.HouseNumber,
 		ApartmentNumber: u.Registration.Events.Start.Apartment,
@@ -61,8 +63,9 @@ type FailRegistrationEvent struct {
 	WithCode string
 }
 
-func (e *FailRegistrationEvent) Apply(u *User) {
-	defer tracer.Trace("failRegistrationEvent::Apply")()
+func (e *FailRegistrationEvent) Apply(ctx context.Context, u *User) {
+	ctx, span := tracer.Open(ctx, tracer.Named("failRegistrationEvent::Apply"))
+	defer span.Close()
 	u.Registration = nil
 }
 
@@ -75,8 +78,9 @@ type RegisterCarLicensePlateEvent struct {
 	LicensePlate string
 }
 
-func (e *RegisterCarLicensePlateEvent) Apply(u *User) {
-	defer tracer.Trace("registerCarLicensePlateEvent::Apply")()
+func (e *RegisterCarLicensePlateEvent) Apply(ctx context.Context, u *User) {
+	ctx, span := tracer.Open(ctx, tracer.Named("registerCarLicensePlateEvent::Apply"))
+	defer span.Close()
 	for _, car := range u.Cars {
 		if car.LicensePlate == e.LicensePlate {
 			return
@@ -96,8 +100,9 @@ var KNOWN_USER_EVENT_TYPES = [...]UserEvent{
 	((*RegisterCarLicensePlateEvent)((nil))),
 }
 
-func SelectType(typeName string) UserEvent {
-	defer tracer.Trace("SelectType")()
+func SelectType(ctx context.Context, typeName string) UserEvent {
+	ctx, span := tracer.Open(ctx, tracer.Named("SelectType"))
+	defer span.Close()
 	for _, t := range KNOWN_USER_EVENT_TYPES {
 		if t.FQDN() == typeName {
 			return reflect.New(reflect.TypeOf(t).Elem()).Interface().(UserEvent)
@@ -107,7 +112,8 @@ func SelectType(typeName string) UserEvent {
 }
 
 func (r *UserRepository) LogEvent(ctx context.Context, userID int64, event UserEvent) error {
-	defer tracer.Trace("UserRepository::LogEvent")()
+	ctx, span := tracer.Open(ctx, tracer.Named("UserRepository::LogEvent"))
+	defer span.Close()
 	now := time.Now()
 	eventBytes, err := json.Marshal(event)
 	if err != nil {

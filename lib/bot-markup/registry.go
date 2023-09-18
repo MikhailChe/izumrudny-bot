@@ -1,10 +1,11 @@
 package markup
 
 import (
+	"context"
+	"mikhailche/botcomod/lib/tracer.v2"
 	"mikhailche/botcomod/services"
-	"mikhailche/botcomod/tracer"
 
-	tele "github.com/mikhailche/telebot"
+	"github.com/mikhailche/telebot"
 )
 
 var (
@@ -24,8 +25,9 @@ var (
 	ChatGroupAdminBtn = Data("⚙️ Для админов чатов", "chatgroupadmin")
 )
 
-func HelpMenuMarkup() *tele.ReplyMarkup {
-	defer tracer.Trace("helpMenuMarkup")()
+func HelpMenuMarkup(ctx context.Context) *telebot.ReplyMarkup {
+	ctx, span := tracer.Open(ctx, tracer.Named("helpMenuMarkup"))
+	defer span.Close()
 	return InlineMarkup(
 		Row(DistrictChatsBtn),
 		Row(HelpfulPhonesBtn),
@@ -34,10 +36,11 @@ func HelpMenuMarkup() *tele.ReplyMarkup {
 	)
 }
 
-func DynamicHelpMenuMarkup(ctx tele.Context, groupChats *services.GroupChatService) *tele.ReplyMarkup {
-	defer tracer.Trace("DynamicHelpMenuMarkup")()
-	var rows []tele.Row
-	isAdminOfSomeChat := isAdminOfSomeManagedChatFn(groupChats)(ctx, ctx.Sender().ID)
+func DynamicHelpMenuMarkup(ctx context.Context, c telebot.Context, groupChats *services.GroupChatService) *telebot.ReplyMarkup {
+	ctx, span := tracer.Open(ctx, tracer.Named("DynamicHelpMenuMarkup"))
+	defer span.Close()
+	var rows []telebot.Row
+	isAdminOfSomeChat := isAdminOfSomeManagedChatFn(groupChats)(c, c.Sender().ID)
 	rows = append(
 		rows,
 		Row(DistrictChatsBtn),
@@ -51,14 +54,14 @@ func DynamicHelpMenuMarkup(ctx tele.Context, groupChats *services.GroupChatServi
 	return InlineMarkup(rows...)
 }
 
-var isAdminOfSomeManagedChatFnCache func(ctx tele.Context, userID int64) bool
+var isAdminOfSomeManagedChatFnCache func(ctx telebot.Context, userID int64) bool
 
-func isAdminOfSomeManagedChatFn(groupChats *services.GroupChatService) func(ctx tele.Context, userID int64) bool {
+func isAdminOfSomeManagedChatFn(groupChats *services.GroupChatService) func(ctx telebot.Context, userID int64) bool {
 	if isAdminOfSomeManagedChatFnCache != nil {
 		return isAdminOfSomeManagedChatFnCache
 	}
 	byUserIDCache := make(map[int64]bool)
-	isAdminOfSomeManagedChatFnCache = func(ctx tele.Context, userID int64) bool {
+	isAdminOfSomeManagedChatFnCache = func(ctx telebot.Context, userID int64) bool {
 		if answer, inCache := byUserIDCache[userID]; inCache {
 			return answer
 		}

@@ -3,9 +3,8 @@ package repository
 import (
 	"context"
 	"fmt"
+	"mikhailche/botcomod/lib/tracer.v2"
 	"path"
-
-	"mikhailche/botcomod/tracer"
 
 	"github.com/ydb-platform/ydb-go-sdk/v3"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
@@ -29,12 +28,13 @@ type TGroupChat struct {
 	AntiObscene       bool
 }
 
-func (h *TGroupChats) Scan(res result.Result) error {
-	defer tracer.Trace("tHouses::Scan")()
+func (h *TGroupChats) Scan(ctx context.Context, res result.Result) error {
+	ctx, span := tracer.Open(ctx, tracer.Named("tHouses::Scan"))
+	defer span.Close()
 	var chats []TGroupChat
 	for res.NextRow() {
 		var chat TGroupChat
-		if err := chat.Scan(res); err != nil {
+		if err := chat.Scan(ctx, res); err != nil {
 			return fmt.Errorf("чтение домов: %w", err)
 		}
 		chats = append(chats, chat)
@@ -43,8 +43,9 @@ func (h *TGroupChats) Scan(res result.Result) error {
 	return res.Err()
 }
 
-func (h *TGroupChat) Scan(res result.Result) error {
-	defer tracer.Trace("tHouse::Scan")()
+func (h *TGroupChat) Scan(ctx context.Context, res result.Result) error {
+	ctx, span := tracer.Open(ctx, tracer.Named("tHouse::Scan"))
+	defer span.Close()
 	return res.ScanNamed(
 		named.OptionalWithDefault("group", &h.Group),
 		named.OptionalWithDefault("name", &h.Name),
@@ -64,12 +65,12 @@ type ChatRepository struct {
 
 func NewGroupChatRepository(driver *ydb.Driver, log *zap.Logger) *ChatRepository {
 	repo := &ChatRepository{driver, log}
-	repo.Init(context.Background())
 	return repo
 }
 
 func (h *ChatRepository) Init(ctx context.Context) error {
-	defer tracer.Trace("ChatRepository::Init")()
+	ctx, span := tracer.Open(ctx, tracer.Named("ChatRepository::Init"))
+	defer span.Close()
 	return h.db.Table().Do(ctx, func(ctx context.Context, s table.Session) error {
 		return s.CreateTable(ctx, path.Join(h.db.Name(), "groupChat"),
 			options.WithColumn("group", types.TypeString),
@@ -85,9 +86,12 @@ func (h *ChatRepository) Init(ctx context.Context) error {
 }
 
 func (h *ChatRepository) GetGroupChats(ctx context.Context) (TGroupChats, error) {
-	defer tracer.Trace("ChatRepository::GetGroupChats")()
+	ctx, span := tracer.Open(ctx, tracer.Named("ChatRepository::GetGroupChats"))
+	defer span.Close()
 	var chats TGroupChats
 	if err := h.db.Table().Do(ctx, func(ctx context.Context, s table.Session) error {
+		ctx, span := tracer.Open(ctx)
+		defer span.Close()
 		_, res, err := s.Execute(ctx, table.DefaultTxControl(), `SELECT * FROM groupChat ORDER BY order`, table.NewQueryParameters())
 		if err != nil {
 			return fmt.Errorf("чтение чатов: %w", err)
@@ -96,7 +100,7 @@ func (h *ChatRepository) GetGroupChats(ctx context.Context) (TGroupChats, error)
 		if !res.NextResultSet(ctx) {
 			return fmt.Errorf("не нашел результатов при чтении чатов, а должен был найти хотя бы один")
 		}
-		err = chats.Scan(res)
+		err = chats.Scan(ctx, res)
 		return err
 	}, table.WithIdempotent()); err != nil {
 		return nil, err
@@ -110,7 +114,8 @@ func (h *ChatRepository) UpdateChatByTelegramId(
 	telegramChatTitle string,
 	telegramChatType string,
 ) error {
-	defer tracer.Trace("ChatRepository::UpdateChatByTelegramId")()
+	ctx, span := tracer.Open(ctx, tracer.Named("ChatRepository::UpdateChatByTelegramId"))
+	defer span.Close()
 	return h.db.Table().Do(ctx, func(ctx context.Context, s table.Session) error {
 		_, _, err := s.Execute(ctx, table.DefaultTxControl(),
 			`DECLARE $telegram_chat_id AS Int64;

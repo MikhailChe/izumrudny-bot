@@ -5,11 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"mikhailche/botcomod/lib/errors"
+	"mikhailche/botcomod/lib/tracer.v2"
 	"time"
 
-	"mikhailche/botcomod/tracer"
-
-	tele "github.com/mikhailche/telebot"
+	"github.com/mikhailche/telebot"
 	"github.com/ydb-platform/ydb-go-sdk/v3"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table/result"
@@ -23,8 +22,9 @@ type YDBUpdateLogEntry struct {
 	Update string
 }
 
-func (u *YDBUpdateLogEntry) Scan(res result.Result) error {
-	defer tracer.Trace("User::Scan")()
+func (u *YDBUpdateLogEntry) Scan(ctx context.Context, res result.Result) error {
+	ctx, span := tracer.Open(ctx, tracer.Named("YDBUpdateLogEntry::Scan"))
+	defer span.Close()
 	return res.ScanNamed(
 		named.Required("id", &u.ID),
 		named.OptionalWithDefault("update", &u.Update),
@@ -44,7 +44,8 @@ func NewUpdateLogger(db *ydb.Driver, logger *zap.Logger) *UpdateLogger {
 }
 
 func (l *UpdateLogger) LogUpdate(ctx context.Context, upd map[string]any, rawUpdate string) {
-	defer tracer.Trace("logUpdate")()
+	ctx, span := tracer.Open(ctx, tracer.Named("logUpdate"))
+	defer span.Close()
 
 	l.log.Info("Обновление от телеги", zap.Any("update", upd))
 	select {
@@ -60,11 +61,12 @@ type tRetryCount int8
 
 const times tRetryCount = 1
 
-func withRetry(f func() error, retryCount tRetryCount, retryDelay time.Duration) error {
-	defer tracer.Trace("withRetry")()
+func withRetry(ctx context.Context, f func(context.Context) error, retryCount tRetryCount, retryDelay time.Duration) error {
+	ctx, span := tracer.Open(ctx, tracer.Named("withRetry"))
+	defer span.Close()
 	var allErrors []error
 	for ; retryCount > 0; retryCount-- {
-		err := f()
+		err := f(ctx)
 		if err == nil {
 			return nil
 		}
@@ -77,7 +79,7 @@ func (l *UpdateLogger) runYDBWorker() {
 	globalCtx := context.Background()
 	go func() {
 		for entry := range l.entries {
-			if err := withRetry(func() error {
+			if err := withRetry(globalCtx, func(ctx context.Context) error {
 				ctx, cancel := context.WithTimeout(globalCtx, 500*time.Millisecond)
 				defer cancel()
 				return l.ydbLogUpdateNow(ctx, entry.ID, entry.Update)
@@ -89,9 +91,11 @@ func (l *UpdateLogger) runYDBWorker() {
 }
 
 func (l *UpdateLogger) ydbLogUpdateNow(ctx context.Context, ID uint64, update string) error {
-	defer tracer.Trace("LogUpdate")()
+	ctx, span := tracer.Open(ctx, tracer.Named("LogUpdate"))
+	defer span.Close()
 	return (*l.db).Table().Do(ctx, func(ctx context.Context, s table.Session) error {
-		defer tracer.Trace("Do upsert updates-log")()
+		ctx, span := tracer.Open(ctx, tracer.Named("Do upsert updates-log"))
+		defer span.Close()
 		_, res, err := s.Execute(ctx,
 			table.DefaultTxControl(),
 			"DECLARE $timestamp AS Timestamp; "+
@@ -116,11 +120,13 @@ func (l *UpdateLogger) ydbLogUpdateNow(ctx context.Context, ID uint64, update st
 	}, table.WithIdempotent())
 }
 
-func (l *UpdateLogger) GetByUpdateId(ctx context.Context, updateID uint64) (*tele.Update, error) {
-	defer tracer.Trace("UpdateLogger::GetByUpdateId")()
+func (l *UpdateLogger) GetByUpdateId(ctx context.Context, updateID uint64) (*telebot.Update, error) {
+	ctx, span := tracer.Open(ctx, tracer.Named("UpdateLogger::GetByUpdateId"))
+	defer span.Close()
 	var update YDBUpdateLogEntry
 	err := (*l.db).Table().Do(ctx, func(ctx context.Context, s table.Session) error {
-		defer tracer.Trace("Do select updates-log")()
+		ctx, span := tracer.Open(ctx, tracer.Named("Do select updates-log"))
+		defer span.Close()
 		_, res, err := s.Execute(ctx,
 			table.DefaultTxControl(),
 			"DECLARE $id AS Uint64; "+
@@ -139,7 +145,7 @@ func (l *UpdateLogger) GetByUpdateId(ctx context.Context, updateID uint64) (*tel
 		if !res.NextRow() {
 			return fmt.Errorf("обновление не найдено")
 		}
-		if err := update.Scan(res); err != nil {
+		if err := update.Scan(ctx, res); err != nil {
 			return fmt.Errorf("скан события обновления %v: %w", res, err)
 		}
 		return res.Err()
@@ -147,7 +153,7 @@ func (l *UpdateLogger) GetByUpdateId(ctx context.Context, updateID uint64) (*tel
 	if err != nil {
 		return nil, err
 	}
-	var teleUpd tele.Update
+	var teleUpd telebot.Update
 	if err := json.Unmarshal([]byte(update.Update), &teleUpd); err != nil {
 		return nil, err
 	}

@@ -3,7 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
-	"mikhailche/botcomod/tracer"
+	"mikhailche/botcomod/lib/tracer.v2"
 
 	"github.com/ydb-platform/ydb-go-sdk/v3"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
@@ -11,7 +11,7 @@ import (
 	"github.com/ydb-platform/ydb-go-sdk/v3/table/types"
 )
 
-const upsert_cached_telegram_chat_to_sender_mapping_query = `
+const upsertCachedTelegramChatToSenderMappingQuery = `
 DECLARE $chat_id AS Int64;
 DECLARE $user_id AS Int64;
 
@@ -22,16 +22,18 @@ VALUES
 ;
 `
 
-// CACHED MAPPING OF TELEGRAM CHAT TO SENDER
+// UpsertTelegramChatToUserMapping CACHED MAPPING OF TELEGRAM CHAT TO SENDER
 func UpsertTelegramChatToUserMapping(ydb *ydb.Driver) func(ctx context.Context, chat, user int64) error {
 	return func(ctx context.Context, chat, user int64) error {
-		defer tracer.Trace("UpsertTelegramChatToUserMapping")()
+		ctx, span := tracer.Open(ctx, tracer.Named("UpsertTelegramChatToUserMapping"))
+		defer span.Close()
 		return ydb.Table().Do(ctx, func(ctx context.Context, sess table.Session) error {
-			defer tracer.Trace("UpsertTelegramChatToUserMapping::Do")
+			ctx, span := tracer.Open(ctx, tracer.Named("UpsertTelegramChatToUserMapping::Do"))
+			defer span.Close()
 			_, _, err := sess.Execute(
 				ctx,
 				table.DefaultTxControl(),
-				upsert_cached_telegram_chat_to_sender_mapping_query,
+				upsertCachedTelegramChatToSenderMappingQuery,
 				table.NewQueryParameters(
 					table.ValueParam("$user_id", types.Int64Value(user)),
 					table.ValueParam("$chat_id", types.Int64Value(chat)),
@@ -45,7 +47,7 @@ func UpsertTelegramChatToUserMapping(ydb *ydb.Driver) func(ctx context.Context, 
 	}
 }
 
-const select_cached_telegram_chat_to_sender_mapping_query = `
+const selectCachedTelegramChatToSenderMappingQuery = `
 DECLARE $user_id AS Int64;
 
 SELECT
@@ -57,14 +59,16 @@ WHERE user_id = $user_id
 
 func SelectTelegramChatsByUserID(ydb *ydb.Driver) func(context.Context, int64) ([]int64, error) {
 	return func(ctx context.Context, user int64) ([]int64, error) {
-		defer tracer.Trace("SelectTelegramChatsByUserID")()
+		ctx, span := tracer.Open(ctx, tracer.Named("SelectTelegramChatsByUserID"))
+		defer span.Close()
 		var ids []int64
 		if err := ydb.Table().Do(ctx, func(ctx context.Context, sess table.Session) error {
-			defer tracer.Trace("SelectTelegramChatsByUserID::Do")
+			ctx, span := tracer.Open(ctx, tracer.Named("SelectTelegramChatsByUserID::Do"))
+			defer span.Close()
 			_, res, err := sess.Execute(
 				ctx,
 				table.DefaultTxControl(),
-				select_cached_telegram_chat_to_sender_mapping_query,
+				selectCachedTelegramChatToSenderMappingQuery,
 				table.NewQueryParameters(
 					table.ValueParam("$user_id", types.Int64Value(user)),
 				),
