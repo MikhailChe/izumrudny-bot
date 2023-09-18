@@ -184,7 +184,7 @@ func (r *ResidentsChatter) HandleChatRequestApproved(ctx context.Context, c tele
 		return fmt.Errorf("парсинг номера квартиры для чата с резидентами [%v]: %w", c.Args()[2], err)
 	}
 
-	user, err := r.users.FindByAppartment(context.Background(), house.Number, fmt.Sprint(appartment))
+	user, err := r.users.FindByAppartment(ctx, house.Number, fmt.Sprint(appartment))
 	if err == repositories.ErrNotFound {
 		return fmt.Errorf(
 			"не нашел пользователя проживающего в [%v %d]: %w; %v",

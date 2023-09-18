@@ -92,7 +92,7 @@ func (b *TBot) Init(
 		return func(ctx context.Context, c telebot.Context) error {
 			ctx, span := tracer.Open(ctx, tracer.Named("AdminCommandControllerAuth middleware"))
 			defer span.Close()
-			if userRepository.IsAdmin(context.Background(), c.Sender().ID) {
+			if userRepository.IsAdmin(ctx, c.Sender().ID) {
 				return hf(ctx, c)
 			}
 			return nil
@@ -170,7 +170,7 @@ func (b *TBot) Init(
 		return func(ctx context.Context, c telebot.Context) error {
 			ctx, span := tracer.Open(ctx, tracer.Named("AuthMiddleware"))
 			defer span.Close()
-			if userRepository.IsResident(context.Background(), c.Sender().ID) {
+			if userRepository.IsResident(ctx, c.Sender().ID) {
 				return next(ctx, c)
 			}
 			var rows []telebot.Row
@@ -194,7 +194,7 @@ func (b *TBot) Init(
 	getResidentsMarkup := func(ctx context.Context, c telebot.Context) *telebot.ReplyMarkup {
 		ctx, span := tracer.Open(ctx, tracer.Named("getResidentsMarkup"))
 		defer span.Close()
-		user, err := userRepository.GetUser(context.Background(), userRepository.ByID(c.Sender().ID))
+		user, err := userRepository.GetUser(ctx, userRepository.ByID(c.Sender().ID))
 		if err != nil || user.Registration == nil {
 			var rows []telebot.Row
 			rows = append(rows,
@@ -203,7 +203,7 @@ func (b *TBot) Init(
 				markup.Row(markup.PMWithResidentsBtn),
 				markup.Row(markup.HelpMainMenuBtn),
 			)
-			if userRepository.IsAdmin(context.Background(), c.Sender().ID) {
+			if userRepository.IsAdmin(ctx, c.Sender().ID) {
 				rows = append(rows, markup.Row(carsService.EntryPoint()))
 			}
 			return markup.InlineMarkup(rows...)
@@ -296,7 +296,7 @@ func (b *TBot) Init(
 		ctx, span := tracer.Open(ctx, tracer.Named("/start"))
 		defer span.Close()
 		if len(c.Args()) == 1 && len(c.Args()[0]) > 4 {
-			if err := handleMaybeRegistration(c, context.Background(), c.Args()[0]); err == nil {
+			if err := handleMaybeRegistration(c, ctx, c.Args()[0]); err == nil {
 				return nil
 			} else {
 				log.Error("Ошибочная /start регистрация", zap.Error(err))

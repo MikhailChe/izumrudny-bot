@@ -52,12 +52,17 @@ func Open(ctx context.Context, options ...SpanOptions) (context.Context, *TSpan)
 	return context.WithValue(ctx, spanContextKey, &newSpan), &newSpan
 }
 
+func WithSpan(ctx context.Context, span *TSpan) context.Context {
+	return context.WithValue(ctx, spanContextKey, span)
+}
+
+func FromContext(ctx context.Context) *TSpan {
+	parentSpan, _ := ctx.Value(spanContextKey).(*TSpan)
+	return parentSpan
+}
+
 func Background(ctx context.Context) context.Context {
-	nctx := context.Background()
-	if parentSpan, ok := ctx.Value(spanContextKey).(*TSpan); ok && parentSpan != nil {
-		nctx = context.WithValue(nctx, spanContextKey, parentSpan)
-	}
-	return nctx
+	return WithSpan(context.Background(), FromContext(ctx))
 }
 
 func (s *TSpan) Close() {
@@ -78,7 +83,7 @@ type chromeTraceEvent struct {
 	PID  int    `json:"pid"`
 	TID  int    `json:"tid"`
 	Ts   int64  `json:"ts"`  // microsedonds
-	Dur  int64  `json:"dur"` //microsecnds
+	Dur  int64  `json:"dur"` // microsecnds
 	PH   string `json:"ph"`  // X - завершенный
 	Name string `json:"name"`
 	Args any    `json:"args,omitempty"`
@@ -103,7 +108,7 @@ func (s *TSpan) chromeTraceEvents() chromeTrace {
 
 		var event = chromeTraceEvent{
 			PID:  1,
-			TID:  1,
+			TID:  int(span.tid),
 			Ts:   start.Sub(startTS).Microseconds(),
 			Dur:  finish.Sub(start).Microseconds(),
 			PH:   "X",

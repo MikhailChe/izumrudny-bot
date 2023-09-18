@@ -25,7 +25,7 @@ func ReplayUpdateController(mux botMux, adminAuth telebot.MiddlewareFunc, getter
 		if err != nil {
 			return c.EditOrReply(fmt.Sprintf("ID должен быть числовой: %v", err))
 		}
-		update, err := getter.GetByUpdateId(context.Background(), uint64(updateID))
+		update, err := getter.GetByUpdateId(ctx, uint64(updateID))
 		if err != nil {
 			return c.EditOrReply(fmt.Sprintf("Не удалось получить обновление из базы: %v", err))
 		}

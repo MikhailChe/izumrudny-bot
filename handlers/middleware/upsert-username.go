@@ -19,11 +19,11 @@ func UpsertUsernameMiddleware(
 			ctx, span := tracer.Open(ctx, tracer.Named("UpsertUsername middleware"))
 			defer span.Close()
 			err := hf(ctx, c)
-			userRepository.UpsertUsername(context.Background(), c.Sender().ID, c.Sender().Username)
-			if err := telegramChatUpserter(context.Background(), *c.Chat()); err != nil {
+			userRepository.UpsertUsername(ctx, c.Sender().ID, c.Sender().Username)
+			if err := telegramChatUpserter(ctx, *c.Chat()); err != nil {
 				log.Error("telegramChatUpserter middleware failed", zap.Error(err))
 			}
-			if err := chatToUserUpserter(context.Background(), c.Chat().ID, c.Sender().ID); err != nil {
+			if err := chatToUserUpserter(ctx, c.Chat().ID, c.Sender().ID); err != nil {
 				log.Error("chatToUserUpserter middleware failed", zap.Error(err))
 			}
 			return err

@@ -73,11 +73,11 @@ func AdminCommandController(mux botMux, adminAuth telebot.MiddlewareFunc, userRe
 				userID = int64(parsedUserID)
 			}
 		}
-		user, err := userRepository.GetUser(context.Background(), userRepository.ByID(userID))
+		user, err := userRepository.GetUser(ctx, userRepository.ByID(userID))
 		if err != nil {
 			return fmt.Errorf("не могу достать пользователя: %w", err)
 		}
-		userRepository.IsResident(context.Background(), userID)
+		userRepository.IsResident(ctx, userID)
 		userAsJson, _ := json.MarshalIndent(*user, "", "  ")
 		eventsAsJson, _ := json.MarshalIndent(user.Events, "", "  ")
 		return c.EditOrReply(fmt.Sprintf("%#v\n\n%v\n\n%v", *user, string(userAsJson), string(eventsAsJson)))
@@ -92,7 +92,8 @@ func AdminCommandController(mux botMux, adminAuth telebot.MiddlewareFunc, userRe
 			return c.Reply(fmt.Sprintf("Пользователь неверный: %v", userID))
 		}
 
-		approveCode, err := userRepository.StartRegistration(context.Background(),
+		approveCode, err := userRepository.StartRegistration(
+			ctx,
 			userID,
 			int64(c.Update().ID),
 			c.Args()[1],

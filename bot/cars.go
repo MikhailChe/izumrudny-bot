@@ -114,7 +114,7 @@ func (ch *carsHandler) HandleAddCar(ctx context.Context, c tele.Context) error {
 
 func (ch *carsHandler) ConfirmPlateHandler(ctx context.Context, c tele.Context) error {
 	if err := ch.users.RegisterCarLicensePlate(
-		context.Background(),
+		ctx,
 		c.Sender().ID,
 		repositories.RegisterCarLicensePlateEvent{UpdateID: int64(c.Update().ID), LicensePlate: c.Args()[0]},
 	); err != nil {

@@ -57,10 +57,10 @@ func newApp(ctx context.Context) *App {
 	}
 
 	housesRepository := repository.NewHouseRepository(ydbDriver)
-	houseService := services.NewHouseService(housesRepository)
+	houseService := services.NewHouseService(ctx, housesRepository)
 
 	groupChatRepository := repository.NewGroupChatRepository(ydbDriver, log.Named("groupChatRepository"))
-	groupChatService := services.NewGroupChatService(groupChatRepository)
+	groupChatService := services.NewGroupChatService(ctx, groupChatRepository)
 
 	telegramChatUpserter := repository.UpsertTelegramChat(ctx, ydbDriver)
 

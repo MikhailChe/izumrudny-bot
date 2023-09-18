@@ -213,7 +213,7 @@ func (r *telegramRegistrator) HandleStartRegistration(ctx context.Context, c tel
 			confirmMenu,
 		)
 	}
-	code, err := r.userRepository.StartRegistration(context.Background(), c.Sender().ID, int64(c.Update().ID), houseNumber, fmt.Sprint(appartmentNumber))
+	code, err := r.userRepository.StartRegistration(ctx, c.Sender().ID, int64(c.Update().ID), houseNumber, fmt.Sprint(appartmentNumber))
 	if err != nil {
 		if serr := c.EditOrReply(`Извините, в процессе регистрации произошла ошибка. Исправим как можно скорее.`); serr != nil {
 			return serr

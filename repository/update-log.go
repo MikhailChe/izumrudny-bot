@@ -18,8 +18,9 @@ import (
 )
 
 type YDBUpdateLogEntry struct {
-	ID     uint64
-	Update string
+	ID       uint64
+	Update   string
+	LocalCtx context.Context
 }
 
 func (u *YDBUpdateLogEntry) Scan(ctx context.Context, res result.Result) error {
@@ -49,7 +50,7 @@ func (l *UpdateLogger) LogUpdate(ctx context.Context, upd map[string]any, rawUpd
 
 	l.log.Info("Обновление от телеги", zap.Any("update", upd))
 	select {
-	case l.entries <- YDBUpdateLogEntry{(uint64)(upd["update_id"].(float64)), rawUpdate}:
+	case l.entries <- YDBUpdateLogEntry{(uint64)(upd["update_id"].(float64)), rawUpdate, ctx}:
 		break
 	case <-time.After(time.Second):
 		l.log.Error("Не получилось записать обновление в очередь за секунду")
@@ -79,13 +80,16 @@ func (l *UpdateLogger) runYDBWorker() {
 	globalCtx := context.Background()
 	go func() {
 		for entry := range l.entries {
-			if err := withRetry(globalCtx, func(ctx context.Context) error {
-				ctx, cancel := context.WithTimeout(globalCtx, 500*time.Millisecond)
+			_, span := tracer.Open(entry.LocalCtx, tracer.WithNewTid)
+			entryWriterCtx := tracer.WithSpan(globalCtx, span)
+			if err := withRetry(entryWriterCtx, func(ctx context.Context) error {
+				ctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
 				defer cancel()
 				return l.ydbLogUpdateNow(ctx, entry.ID, entry.Update)
 			}, 3*times, time.Second); err != nil {
 				l.log.Error("Не удалось записать обновление", zap.Error(err))
 			}
+			span.Close()
 		}
 	}()
 }

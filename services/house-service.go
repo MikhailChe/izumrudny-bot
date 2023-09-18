@@ -14,9 +14,8 @@ type houseRepo interface {
 	GetHouses(ctx context.Context) (repositories.THouses, error)
 }
 
-func NewHouseService(repo houseRepo) *HouseService {
+func NewHouseService(ctx context.Context, repo houseRepo) *HouseService {
 	service := HouseService{}
-	ctx := context.Background()
 	delay := 1 * time.Second
 	for {
 		houses, err := repo.GetHouses(ctx)

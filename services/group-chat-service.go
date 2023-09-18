@@ -21,11 +21,10 @@ type getGroupChatRepo interface {
 	) error
 }
 
-func NewGroupChatService(repo getGroupChatRepo) *GroupChatService {
+func NewGroupChatService(ctx context.Context, repo getGroupChatRepo) *GroupChatService {
 	service := GroupChatService{
 		repo: repo,
 	}
-	ctx := context.Background()
 	delay := 1 * time.Second
 	for {
 		houses, err := repo.GetGroupChats(ctx)
