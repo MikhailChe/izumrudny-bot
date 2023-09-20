@@ -3,7 +3,7 @@ module mikhailche/botcomod
 go 1.19
 
 require (
-	github.com/mikhailche/telebot v0.0.0-20230914095709-3b805e1a30d6
+	github.com/mikhailche/telebot v0.0.0-20230919175135-0218045249fa
 	github.com/stretchr/testify v1.8.0
 	github.com/ydb-platform/ydb-go-sdk/v3 v3.43.0
 	github.com/ydb-platform/ydb-go-yc v0.10.2
@@ -33,4 +33,3 @@ require (
 	google.golang.org/protobuf v1.30.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-

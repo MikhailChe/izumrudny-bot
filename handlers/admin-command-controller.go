@@ -49,13 +49,13 @@ func AdminCommandController(mux botMux, adminAuth telebot.MiddlewareFunc, userRe
 			return fmt.Errorf("/services SetAdminCommands: %w", err)
 		}
 
-		if _, err := bot.Raw("setMyDescription", map[string]string{
+		if _, err := bot.Raw(ctx, "setMyDescription", map[string]string{
 			"description": BotDescription,
 		}); err != nil {
 			return fmt.Errorf("/service setMyDescription: %w", err)
 		}
 
-		if _, err := bot.Raw("setMyShortDescription", map[string]string{
+		if _, err := bot.Raw(ctx, "setMyShortDescription", map[string]string{
 			"short_description": "Бот изумрдуного бора. Полезные телефоны, ссылки на чаты, анонсы.",
 		}); err != nil {
 			return fmt.Errorf("/service setMyShortDescription: %w", err)
