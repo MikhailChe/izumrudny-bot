@@ -3,6 +3,7 @@ package bot
 import (
 	"context"
 	"fmt"
+	markup "mikhailche/botcomod/lib/bot-markup"
 	"mikhailche/botcomod/lib/tracer.v2"
 	"mikhailche/botcomod/repository"
 	"strconv"
@@ -124,6 +125,7 @@ func (r *telegramRegistrator) HandleStartRegistration(ctx context.Context, c tel
 	if user.Registration != nil {
 		return c.EditOrReply(
 			`Регистрация уже началась. Для завершение регистрации отправьте фотографию вашей квитанции за комуналку. Так мы сможем убедиться, что вы являетесь резидентом района.`,
+			markup.InlineMarkup(markup.Row(markup.BackToResidentsBtn)),
 		)
 	}
 	data := c.Args()

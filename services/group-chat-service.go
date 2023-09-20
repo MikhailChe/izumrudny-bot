@@ -13,12 +13,6 @@ type GroupChatService struct {
 
 type getGroupChatRepo interface {
 	GetGroupChats(ctx context.Context) (repositories.TGroupChats, error)
-	UpdateChatByTelegramId(
-		ctx context.Context,
-		telegramChatID int64,
-		telegramChatTitle string,
-		telegramChatType string,
-	) error
 }
 
 func NewGroupChatService(ctx context.Context, repo getGroupChatRepo) *GroupChatService {
@@ -50,13 +44,4 @@ func (h *GroupChatService) IsAntiObsceneEnabled(chatID int64) bool {
 		}
 	}
 	return false
-}
-
-func (h *GroupChatService) UpdateChatByTelegramId(
-	ctx context.Context,
-	telegramChatID int64,
-	telegramChatTitle string,
-	telegramChatType string,
-) error {
-	return h.repo.UpdateChatByTelegramId(ctx, telegramChatID, telegramChatTitle, telegramChatType)
 }

@@ -183,6 +183,22 @@ SELECT * FROM user_event WHERE user = $id ORDER BY user, timestamp, id;`,
 	})
 }
 
+func (r *UserRepository) ClearEvents(ctx context.Context, userID int64) error {
+	ctx, span := tracer.Open(ctx)
+	defer span.Close()
+	return r.DB.Table().Do(ctx, func(ctx context.Context, s table.Session) error {
+		ctx, span := tracer.Open(ctx)
+		defer span.Close()
+		_, _, err := s.Execute(
+			ctx,
+			table.DefaultTxControl(),
+			"DECLARE $id AS Int64; DELETE FROM user_event WHERE user = $id;",
+			table.NewQueryParameters(table.ValueParam("$id", types.Int64Value(userID))),
+		)
+		return err
+	})
+}
+
 func (r *UserRepository) GetUser(ctx context.Context, userQueryExecutor getUserOption) (*User, error) {
 	ctx, span := tracer.Open(ctx, tracer.Named("UserRepository::GetById"))
 	defer span.Close()

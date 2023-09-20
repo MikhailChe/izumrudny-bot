@@ -15,6 +15,7 @@ var (
 	HelpfulPhonesBtn = Data("☎️ Телефоны", "phone-numbers")
 
 	ResidentsBtn       = Data("🏡 Для резидентов", "authorized-section")
+	BackToResidentsBtn = Data("⬅️ Назад в меню для резидентов", "authorized-section")
 	IntercomCodeBtn    = Data("🔑 Код домофона", "intercom-code")
 	VideoCamerasBtn    = Data("📽 Камеры видеонаблюдения", "internal-video-cameras")
 	PMWithResidentsBtn = Data("💬 Чат с другими резидентами", "resident-pm")

@@ -107,38 +107,3 @@ func (h *ChatRepository) GetGroupChats(ctx context.Context) (TGroupChats, error)
 	}
 	return chats, nil
 }
-
-func (h *ChatRepository) UpdateChatByTelegramId(
-	ctx context.Context,
-	telegramChatID int64,
-	telegramChatTitle string,
-	telegramChatType string,
-) error {
-	ctx, span := tracer.Open(ctx, tracer.Named("ChatRepository::UpdateChatByTelegramId"))
-	defer span.Close()
-	return h.db.Table().Do(ctx, func(ctx context.Context, s table.Session) error {
-		_, _, err := s.Execute(ctx, table.DefaultTxControl(),
-			`DECLARE $telegram_chat_id AS Int64;
-		DECLARE $telegram_chat_title AS Utf8;
-		DECLARE $telegram_chat_type AS Utf8;
-		UPDATE groupChat 
-		SET 
-			telegram_chat_title=$telegram_chat_title, 
-			telegram_chat_type=$telegram_chat_type 
-		WHERE telegram_chat_id = $telegram_chat_id;`,
-			table.NewQueryParameters(
-				table.ValueParam("$telegram_chat_id", types.Int64Value(telegramChatID)),
-				table.ValueParam("$telegram_chat_title", types.UTF8Value(telegramChatTitle)),
-				table.ValueParam("$telegram_chat_type", types.UTF8Value(telegramChatType)),
-			))
-		h.log.Info("Executed UpdateChatByTelegramId query", zap.Error(err),
-			zap.Int64("telegram_chat_id", telegramChatID),
-			zap.String("telegram_chat_title", telegramChatTitle),
-			zap.String("telegram_chat_type", telegramChatType),
-		)
-		if err != nil {
-			return fmt.Errorf("UPSERT groupChat: %w", err)
-		}
-		return nil
-	})
-}

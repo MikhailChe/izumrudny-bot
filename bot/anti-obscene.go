@@ -4,7 +4,7 @@ import (
 	"context"
 	"mikhailche/botcomod/services"
 
-	tele "github.com/mikhailche/telebot"
+	"github.com/mikhailche/telebot"
 	"go.uber.org/zap"
 )
 
@@ -12,8 +12,8 @@ type obsceneDetector interface {
 	DetectObsceneLanguage(string) bool
 }
 
-func manageAntiSpam(log *zap.Logger, groupChatService *services.GroupChatService, antiObsceneFilter obsceneDetector) func(context.Context, tele.Context) error {
-	return func(ctx context.Context, c tele.Context) error {
+func manageAntiSpam(log *zap.Logger, groupChatService *services.GroupChatService, antiObsceneFilter obsceneDetector) func(context.Context, telebot.Context) error {
+	return func(ctx context.Context, c telebot.Context) error {
 		if !groupChatService.IsAntiObsceneEnabled(c.Chat().ID) {
 			return nil
 		}

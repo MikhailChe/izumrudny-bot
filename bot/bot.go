@@ -305,6 +305,8 @@ func (b *TBot) Init(
 		return c.EditOrReply("Привет! " + handlers.BotDescription + "\nИспользуйте команду /help для вызова меню")
 	})
 
+	bot.Handle("/clear", handlers.ClearAllDataController(userRepository))
+
 	authGroup := bot.Group()
 	authGroup.Use(authMiddleware)
 
@@ -340,11 +342,11 @@ func (b *TBot) Init(
 Для просмотра можно воспользоваться приложением Форпост.
 `,
 			telebot.ModeHTML,
-			getResidentsMarkup(ctx, c))
+			markup.InlineMarkup(markup.Row(markup.BackToResidentsBtn)))
 	}
 	authGroup.Handle(&markup.VideoCamerasBtn, videoCamerasHandler)
 
-	residentsChatter, err := NewResidentsChatter(ctx, userRepository, houses, markup.HelpMainMenuBtn)
+	residentsChatter, err := NewResidentsChatter(ctx, userRepository, houses, markup.BackToResidentsBtn)
 	if err != nil {
 		log.Fatal("Ошибка инициализации чатов", zap.Error(err))
 	}

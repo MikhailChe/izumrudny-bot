@@ -77,7 +77,6 @@ func newApp(ctx context.Context) *App {
 		[]telebot.MiddlewareFunc{
 			middleware.TracingMiddleware,
 			middleware.WithYdbTxInContext(ydbDriver, log.Named("ydbSessionMiddleware")),
-			middleware.UpsertGroupChatMiddleware(log.Named("upsertGroupChatMiddleware"), groupChatService),
 			middleware.UpsertUsernameMiddleware(log.Named("upsertUsernameMiddleware"), userRepository, telegramChatUpserter, repository.UpsertTelegramChatToUserMapping(ydbDriver)),
 			middleware.AutoRespondCallback,
 			middleware.RecoverMiddleware(log.Named("recoverMiddleware")),
