@@ -80,12 +80,12 @@ func AdminCommandController(mux botMux, adminAuth telebot.MiddlewareFunc, userRe
 		userRepository.IsResident(ctx, userID)
 		userAsJson, _ := json.MarshalIndent(*user, "", "  ")
 		eventsAsJson, _ := json.MarshalIndent(user.Events, "", "  ")
-		return c.EditOrReply(fmt.Sprintf("%#v\n\n%v\n\n%v", *user, string(userAsJson), string(eventsAsJson)))
+		return c.EditOrReply(ctx, fmt.Sprintf("%#v\n\n%v\n\n%v", *user, string(userAsJson), string(eventsAsJson)))
 	})
 
 	mux.Handle("/manual_register", func(ctx context.Context, c telebot.Context) error {
 		if len(c.Args()) < 3 {
-			return c.EditOrReply("Нужно указать ID пользователя, номер дома и номер квартиры")
+			return c.EditOrReply(ctx, "Нужно указать ID пользователя, номер дома и номер квартиры")
 		}
 		userID, err := strconv.ParseInt(c.Args()[0], 10, 64)
 		if err != nil {
@@ -102,7 +102,7 @@ func AdminCommandController(mux botMux, adminAuth telebot.MiddlewareFunc, userRe
 			return c.Reply(fmt.Sprintf("Ошибка регистрации: %v", err))
 		}
 
-		if _, err := c.Bot().Send(
+		if _, err := c.Bot().Send(ctx,
 			&telebot.User{ID: int64(userID)},
 			`Спасибо за регистрацию. 
 Пока что вам доступен раздел со ссылками на камеры видеонаблюдения.
@@ -129,7 +129,7 @@ func AdminCommandController(mux botMux, adminAuth telebot.MiddlewareFunc, userRe
 			)
 		}
 		message := strings.Join(c.Args()[1:], " ")
-		_, err = c.Bot().Send(&telebot.User{ID: int64(id)}, message)
+		_, err = c.Bot().Send(ctx, &telebot.User{ID: int64(id)}, message)
 		if err != nil {
 			return fmt.Errorf("/reply пользователю: %w", err)
 		}
@@ -181,6 +181,6 @@ func AdminCommandController(mux botMux, adminAuth telebot.MiddlewareFunc, userRe
 			printChatMember(botAsMember, &sb)
 			sb.WriteRune('\n')
 		}
-		return c.Send(sb.String(), telebot.ModeHTML)
+		return c.Send(ctx, sb.String(), telebot.ModeHTML)
 	})
 }

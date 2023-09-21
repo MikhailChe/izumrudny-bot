@@ -19,17 +19,17 @@ type UpdateLogGetter interface {
 func ReplayUpdateController(mux botMux, adminAuth telebot.MiddlewareFunc, getter UpdateLogGetter, processor UpdateProcessor) {
 	mux.Handle("/replayupdate", func(ctx context.Context, c telebot.Context) error {
 		if len(c.Args()) == 0 {
-			return c.EditOrReply("Укажи ID обновления аргументом к команде")
+			return c.EditOrReply(ctx, "Укажи ID обновления аргументом к команде")
 		}
 		updateID, err := strconv.Atoi(c.Args()[0])
 		if err != nil {
-			return c.EditOrReply(fmt.Sprintf("ID должен быть числовой: %v", err))
+			return c.EditOrReply(ctx, fmt.Sprintf("ID должен быть числовой: %v", err))
 		}
 		update, err := getter.GetByUpdateId(ctx, uint64(updateID))
 		if err != nil {
-			return c.EditOrReply(fmt.Sprintf("Не удалось получить обновление из базы: %v", err))
+			return c.EditOrReply(ctx, fmt.Sprintf("Не удалось получить обновление из базы: %v", err))
 		}
 		processor.ProcessUpdateCtx(ctx, *update)
-		return c.EditOrReply("Наверное, всё удалось, но я точно не знаю")
+		return c.EditOrReply(ctx, "Наверное, всё удалось, но я точно не знаю")
 	}, adminAuth)
 }

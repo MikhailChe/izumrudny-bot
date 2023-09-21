@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	tele "github.com/mikhailche/telebot"
@@ -16,7 +17,7 @@ type mockBot struct {
 	mock.Mock
 }
 
-func (m *mockBot) Send(to tele.Recipient, what interface{}, opts ...interface{}) (*tele.Message, error) {
+func (m *mockBot) Send(_ context.Context, to tele.Recipient, what interface{}, opts ...interface{}) (*tele.Message, error) {
 	argsToReturn := m.Called(to, what, opts)
 	msg, ok := argsToReturn.Get(0).(*tele.Message)
 	if !ok {

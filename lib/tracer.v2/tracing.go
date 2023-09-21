@@ -123,9 +123,9 @@ func (s *TSpan) chromeTraceEvents() chromeTrace {
 }
 
 func opname() string {
-	pc, file, line, ok := runtime.Caller(2)
+	pc, _, line, ok := runtime.Caller(2)
 	if ok {
-		return fmt.Sprintf("%s:%d//%s", file, line, runtime.FuncForPC(pc).Name())
+		return fmt.Sprintf("%s:%d", runtime.FuncForPC(pc).Name(), line)
 	}
 	return ""
 }

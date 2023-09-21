@@ -66,7 +66,7 @@ func (b *TBot) Init(
 			} else {
 				log.Error("Ошибка внутри бота", zap.Error(err))
 			}
-			if _, err := c.Bot().Send(
+			if _, err := c.Bot().Send(ctx,
 				&telebot.User{ID: devbotsender.DeveloperID},
 				fmt.Sprintf("Ошибка обработчика: %v", err.Error()),
 			); err != nil {
@@ -154,7 +154,7 @@ func (b *TBot) Init(
 			}
 		}
 		rows = append(rows, markup.Row(markup.HelpMainMenuBtn))
-		return c.EditOrSend(
+		return c.EditOrSend(ctx,
 			"Вот список известных мне чатов.\n"+
 				"Для вступления в большинство из них требуется подтверждение от администратора чата (🔐).",
 			markup.InlineMarkup(rows...),
@@ -169,14 +169,15 @@ func (b *TBot) Init(
 	var authMiddleware telebot.MiddlewareFunc = func(next telebot.HandlerFunc) telebot.HandlerFunc {
 		return func(ctx context.Context, c telebot.Context) error {
 			ctx, span := tracer.Open(ctx, tracer.Named("AuthMiddleware"))
-			defer span.Close()
 			if userRepository.IsResident(ctx, c.Sender().ID) {
+				span.Close()
 				return next(ctx, c)
 			}
+			defer span.Close()
 			var rows []telebot.Row
 			rows = append(rows, markup.Row(*registrationService.EntryPoint()))
 			rows = append(rows, markup.Row(markup.HelpMainMenuBtn))
-			return c.EditOrSend(`Этот раздел только для резидентов изумрудного бора. 
+			return c.EditOrSend(ctx, `Этот раздел только для резидентов изумрудного бора. 
 Нажмите клавишу регистрации, чтобы получить доступ. Регистрация может занять от нескольких минут до нескольких дней.
 
 После регистрации вы получите доступ к коду от домофона 🔑, ссылкам на видеокамеры, установленные в районе 📽.
@@ -220,7 +221,7 @@ func (b *TBot) Init(
 
 	registrationCheckApproveCode := func(c telebot.Context, ctx context.Context, user *repository.User, approveCode string) error {
 		if user.Registration == nil {
-			return c.EditOrReply("Ошибка регистрации: вы не начинали регистрацию, поэтому не можете её завершить", getResidentsMarkup(ctx, c))
+			return c.EditOrReply(ctx, "Ошибка регистрации: вы не начинали регистрацию, поэтому не можете её завершить", getResidentsMarkup(ctx, c))
 		}
 		if approveCode == user.Registration.Events.Start.ApproveCode {
 			userRepository.ConfirmRegistration(
@@ -228,14 +229,14 @@ func (b *TBot) Init(
 				c.Sender().ID,
 				repository.ConfirmRegistrationEvent{UpdateID: int64(c.Update().ID), WithCode: approveCode},
 			)
-			return c.EditOrReply("Спасибо. Регистрация завершена.", getResidentsMarkup(ctx, c))
+			return c.EditOrReply(ctx, "Спасибо. Регистрация завершена.", getResidentsMarkup(ctx, c))
 		} else {
 			userRepository.FailRegistration(
 				ctx,
 				c.Sender().ID,
 				repository.FailRegistrationEvent{UpdateID: int64(c.Update().ID), WithCode: approveCode},
 			)
-			return c.EditOrReply(
+			return c.EditOrReply(ctx,
 				"Неверный код. Попробуем заново? Процесс такой же: выбираете дом и квартиру и ждёте правильный код на почту.",
 				markup.HelpMenuMarkup(ctx),
 			)
@@ -269,7 +270,7 @@ func (b *TBot) Init(
 						}
 						rows = append(rows, conRegMarkup.Row(helpMainMenuBtn))
 						conRegMarkup.Inline(rows...)
-						return ctx.EditOrReply("Для завершения регистрации выберите правильный код, который вы нашли у себя в почтовом ящике.\n"+
+						return ctx.EditOrReply(ctx, "Для завершения регистрации выберите правильный код, который вы нашли у себя в почтовом ящике.\n"+
 							"Если Ваш дом ещё не сдан, то вы можете пользоваться частью сервисов и завершить регистрацию после заселения.", conRegMarkup)
 					}
 					return registrationCheckApproveCode(c, ctx, user, data[0])
@@ -282,7 +283,7 @@ func (b *TBot) Init(
 			return err
 		}
 		if approveToken.UserID != c.Sender().ID {
-			return c.EditOrReply("Этот код регистрации для другого пользователя. Перепутали телефон?", markup.HelpMenuMarkup(ctx))
+			return c.EditOrReply(ctx, "Этот код регистрации для другого пользователя. Перепутали телефон?", markup.HelpMenuMarkup(ctx))
 		}
 
 		user, err := userRepository.GetUser(ctx, userRepository.ByID(c.Sender().ID))
@@ -302,7 +303,7 @@ func (b *TBot) Init(
 				log.Error("Ошибочная /start регистрация", zap.Error(err))
 			}
 		}
-		return c.EditOrReply("Привет! " + handlers.BotDescription + "\nИспользуйте команду /help для вызова меню")
+		return c.EditOrReply(ctx, "Привет! "+handlers.BotDescription+"\nИспользуйте команду /help для вызова меню")
 	})
 
 	bot.Handle("/clear", handlers.ClearAllDataController(userRepository))
@@ -313,14 +314,14 @@ func (b *TBot) Init(
 	residentsHandler := func(ctx context.Context, c telebot.Context) error {
 		ctx, span := tracer.Open(ctx, tracer.Named("residentsHandler"))
 		defer span.Close()
-		return c.EditOrSend("Немного полезностей для резидентов", getResidentsMarkup(ctx, c))
+		return c.EditOrSend(ctx, "Немного полезностей для резидентов", getResidentsMarkup(ctx, c))
 	}
 	authGroup.Handle(&markup.ResidentsBtn, residentsHandler)
 
 	intercomHandlers := func(ctx context.Context, c telebot.Context) error {
 		ctx, span := tracer.Open(ctx, tracer.Named("intercomHandlers"))
 		defer span.Close()
-		return c.EditOrSend(
+		return c.EditOrSend(ctx,
 			"Здесь будет актуальный код для прохода через домофон. Если вы знаете теукщий код - напишите его мне.",
 			getResidentsMarkup(ctx, c),
 		)
@@ -330,7 +331,7 @@ func (b *TBot) Init(
 	videoCamerasHandler := func(ctx context.Context, c telebot.Context) error {
 		ctx, span := tracer.Open(ctx, tracer.Named("videoCamerasHandler"))
 		defer span.Close()
-		return c.EditOrSend(`
+		return c.EditOrSend(ctx, `
 <a href="https://vs.domru.ru">Площадка 108А</a>
 Логин: <code>ertel-wk-557</code>
 Пароль: <code>uu4rg2x3</code>

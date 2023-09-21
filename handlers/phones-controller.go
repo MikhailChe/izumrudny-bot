@@ -16,7 +16,7 @@ func PhonesController(mux botMux, helpMainMenuBtn *telebot.Btn, helpfulPhonesBtn
 		markup.Inline(
 			markup.Row(*helpMainMenuBtn),
 		)
-		return c.EditOrSend(
+		return c.EditOrSend(ctx,
 			"👮 Охрана  <b>+7-982-690-0793</b>\n"+
 				"🚨 Аварийно-диспетчерская служба <b>+7-343-317-0798</b>\n"+
 				"🧑‍💼👔 Управляющая компания <b>+7-343-283-0555</b>\n\n"+

@@ -9,7 +9,7 @@ import (
 
 func ChatGroupAdminController(mux botMux) {
 	mux.Handle(&markup.ChatGroupAdminBtn, func(ctx context.Context, c telebot.Context) error {
-		return c.EditOrReply(
+		return c.EditOrReply(ctx,
 			`Тут пока ничего нет. 
 			Если вы увидели этот раздел, значит бот знает, что вы админ одного из чатов. 
 			Скоро тут будут полезности.`,

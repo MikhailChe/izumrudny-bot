@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"context"
 	"fmt"
 	"github.com/mikhailche/telebot"
 	"go.uber.org/zap/zapcore"
@@ -9,7 +10,7 @@ import (
 )
 
 type Bot interface {
-	Send(to telebot.Recipient, what interface{}, opts ...interface{}) (*telebot.Message, error)
+	Send(ctx context.Context, to telebot.Recipient, what interface{}, opts ...interface{}) (*telebot.Message, error)
 }
 
 type telegramCore struct {
@@ -52,7 +53,7 @@ func (t telegramCore) Write(entry zapcore.Entry, fields []zapcore.Field) error {
 	if err != nil {
 		return err
 	}
-	if _, err := t.bot.Send(telebot.ChatID(t.receiverID), message.String(), telebot.ModeHTML); err != nil {
+	if _, err := t.bot.Send(context.TODO(), telebot.ChatID(t.receiverID), message.String(), telebot.ModeHTML); err != nil {
 		return fmt.Errorf("сообщение разработчику %v: %w", message.String(), err)
 	}
 	return nil

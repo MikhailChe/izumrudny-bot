@@ -50,7 +50,7 @@ func WhoisHandler(
 	whois := func(ctx context.Context, c telebot.Context) error {
 		args := c.Args()
 		if len(args) == 0 {
-			return c.EditOrReply("Введите имя пользователя или его идентификатор")
+			return c.EditOrReply(ctx, "Введите имя пользователя или его идентификатор")
 		}
 		ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 		defer cancel()
@@ -64,11 +64,11 @@ func WhoisHandler(
 			message, err = with(ctx, int64(userID), userByID, byUser)
 		}
 		if err != nil {
-			c.EditOrReply("Ошибка получения информации о пользователе")
+			_ = c.EditOrReply(ctx, "Ошибка получения информации о пользователе")
 			log.Error("Ошибка получения информации о пользователе", zap.Error(err))
 			return nil
 		}
-		return c.EditOrReply(message)
+		return c.EditOrReply(ctx, message)
 	}
 	mux.Handle("/whois", whois)
 }

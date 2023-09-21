@@ -30,7 +30,7 @@ func doForwardToDeveloper(ctx context.Context, c telebot.Context) error {
 	ctx, span := tracer.Open(ctx, tracer.Named("doForwardToDeveloper"))
 	defer span.Close()
 	var sender = c.Sender()
-	if _, err := c.Bot().Send(
+	if _, err := c.Bot().Send(ctx,
 		&telebot.Chat{ID: DeveloperID},
 		fmt.Sprintf("Сообщение от клиента [%v]: %v %v @%v", sender.ID, sender.FirstName, sender.LastName, sender.Username),
 	); err != nil {
@@ -43,7 +43,7 @@ func SendToDeveloper(ctx context.Context, c telebot.Context, log *zap.Logger, me
 	ctx, span := tracer.Open(ctx, tracer.Named("SendToDeveloper"))
 	defer span.Close()
 	log.Named("сообщения для разработчиков").Info(message, zap.Any("opts", opts))
-	if _, err := c.Bot().Send(&telebot.Chat{ID: DeveloperID}, message, opts...); err != nil {
+	if _, err := c.Bot().Send(ctx, &telebot.Chat{ID: DeveloperID}, message, opts...); err != nil {
 		return fmt.Errorf("сообщение разработчику %v: %w", message, err)
 	}
 	return nil

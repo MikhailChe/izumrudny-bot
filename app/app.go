@@ -79,6 +79,7 @@ func newApp(ctx context.Context) *App {
 			middleware.WithYdbTxInContext(ydbDriver, log.Named("ydbSessionMiddleware")),
 			middleware.UpsertUsernameMiddleware(log.Named("upsertUsernameMiddleware"), userRepository, telegramChatUpserter, repository.UpsertTelegramChatToUserMapping(ydbDriver)),
 			middleware.AutoRespondCallback,
+			middleware.CurrentUserInContext(userRepository),
 			middleware.RecoverMiddleware(log.Named("recoverMiddleware")),
 		},
 	)

@@ -132,55 +132,88 @@ func NewUserRepository(ctx context.Context, ydb *ydb.Driver, log *zap.Logger) (*
 
 // SELECT USER by USERNAME AND ID
 
-type getUserOption = func(ctx context.Context, s table.Session) (txr table.Transaction, r result.Result, err error)
+type getUserOption = func(ctx context.Context, s table.Session) (*User, error)
 
-func (r *UserRepository) ByID(userID int64) func(ctx context.Context, s table.Session) (txr table.Transaction, r result.Result, err error) {
-	return func(ctx context.Context, s table.Session) (txr table.Transaction, r result.Result, err error) {
-		return s.Execute(ctx, table.DefaultTxControl(),
+func (r *UserRepository) postGetUserOptionToUserScanner(ctx context.Context, s table.Session, res result.Result, err error) (*User, error) {
+	ctx, span := tracer.Open(ctx)
+	defer span.Close()
+	if err != nil {
+		return nil, fmt.Errorf("UserRepository::GetUser: %w", err)
+	}
+	defer res.Close()
+	if !res.NextResultSet(ctx) {
+		return nil, fmt.Errorf("не нашел result set для пользователя")
+	}
+	if !res.NextRow() {
+		return nil, fmt.Errorf("пользователь не найден")
+	}
+	var user User
+	if err := user.Scan(ctx, res); err != nil {
+		return nil, fmt.Errorf("скан пользователя %v: %w", res, err)
+	}
+	if err := r.applyEvents(ctx, s, &user); err != nil {
+		return nil, fmt.Errorf("применение событий: %w", err)
+	}
+	return &user, nil
+}
+
+func (r *UserRepository) ByID(userID int64) func(ctx context.Context, s table.Session) (*User, error) {
+	return func(ctx context.Context, s table.Session) (*User, error) {
+		ctx, span := tracer.Open(ctx)
+		defer span.Close()
+		if user := CurrentUserFromContext(ctx); user != nil && user.ID == userID {
+			return user, nil
+		}
+		_, res, err := s.Execute(ctx, table.DefaultTxControl(),
 			`DECLARE $id AS Int64;
 SELECT * FROM user WHERE id = $id LIMIT 1;`,
 			table.NewQueryParameters(table.ValueParam("$id", types.Int64Value(userID))),
 		)
+		return r.postGetUserOptionToUserScanner(ctx, s, res, err)
 	}
 }
 
-func (r *UserRepository) ByUsername(username string) func(ctx context.Context, s table.Session) (txr table.Transaction, r result.Result, err error) {
-	return func(ctx context.Context, s table.Session) (txr table.Transaction, r result.Result, err error) {
-		return s.Execute(ctx, table.DefaultTxControl(),
+func (r *UserRepository) ByUsername(username string) func(ctx context.Context, s table.Session) (*User, error) {
+	return func(ctx context.Context, s table.Session) (*User, error) {
+		ctx, span := tracer.Open(ctx)
+		defer span.Close()
+		if user := CurrentUserFromContext(ctx); user != nil && user.Username == username {
+			return user, nil
+		}
+		_, res, err := s.Execute(ctx, table.DefaultTxControl(),
 			`DECLARE $username AS Utf8;
 SELECT * FROM user WHERE username = $username LIMIT 1;`,
 			table.NewQueryParameters(table.ValueParam("$username", types.UTF8Value(username))),
 		)
+		return r.postGetUserOptionToUserScanner(ctx, s, res, err)
 	}
 }
 
-func (r *UserRepository) ApplyEvents(ctx context.Context, user *User) error {
-	ctx, span := tracer.Open(ctx, tracer.Named("UserRepository::ApplyEvents"))
+func (r *UserRepository) applyEvents(ctx context.Context, s table.Session, user *User) error {
+	ctx, span := tracer.Open(ctx, tracer.Named("UserRepository::applyEvents"))
 	defer span.Close()
-	return r.DB.Table().Do(ctx, func(ctx context.Context, s table.Session) error {
-		_, res, err := s.Execute(ctx, table.DefaultTxControl(),
-			`DECLARE $id AS Int64;
+	_, res, err := s.Execute(ctx, table.DefaultTxControl(),
+		`DECLARE $id AS Int64;
 SELECT * FROM user_event WHERE user = $id ORDER BY user, timestamp, id;`,
-			table.NewQueryParameters(table.ValueParam("$id", types.Int64Value(user.ID))),
-		)
-		if err != nil {
-			return fmt.Errorf("SELECT user_event [id=%d]: %w", user.ID, err)
+		table.NewQueryParameters(table.ValueParam("$id", types.Int64Value(user.ID))),
+	)
+	if err != nil {
+		return fmt.Errorf("SELECT user_event [id=%d]: %w", user.ID, err)
+	}
+	defer res.Close()
+	if !res.NextResultSet(ctx) {
+		return fmt.Errorf("не нашел result set для событий пользователя; невалидный запрос?")
+	}
+	for res.NextRow() {
+		var event UserEventRecord
+		if err := event.Scan(ctx, res); err != nil {
+			return fmt.Errorf("не смог события пользователя: %w", err)
 		}
-		defer res.Close()
-		if !res.NextResultSet(ctx) {
-			return fmt.Errorf("не нашел result set для событий пользователя; невалидный запрос?")
-		}
-		for res.NextRow() {
-			var event UserEventRecord
-			if err := event.Scan(ctx, res); err != nil {
-				return fmt.Errorf("не смог события пользователя: %w", err)
-			}
-			r.log.Info("Применяю собятие", zap.Any("event", event))
-			event.Event.Apply(ctx, user)
-			user.Events = append(user.Events, event)
-		}
-		return errors.ErrorfOrNil(res.Err(), "ApplyEvents [id=%d]", user.ID)
-	})
+		r.log.Info("Применяю собятие", zap.Any("event", event))
+		event.Event.Apply(ctx, user)
+		user.Events = append(user.Events, event)
+	}
+	return errors.ErrorfOrNil(res.Err(), "applyEvents [id=%d]", user.ID)
 }
 
 func (r *UserRepository) ClearEvents(ctx context.Context, userID int64) error {
@@ -199,34 +232,37 @@ func (r *UserRepository) ClearEvents(ctx context.Context, userID int64) error {
 	})
 }
 
+type currentUserInContextKeyType int
+
+var currentUserInContextKey currentUserInContextKeyType
+
+func CurrentUserFromContext(ctx context.Context) *User {
+	u, _ := ctx.Value(currentUserInContextKey).(*User)
+	return u
+}
+
+func PutCurrentUserToContext(ctx context.Context, user *User) context.Context {
+	return context.WithValue(ctx, currentUserInContextKey, user)
+}
+
 func (r *UserRepository) GetUser(ctx context.Context, userQueryExecutor getUserOption) (*User, error) {
-	ctx, span := tracer.Open(ctx, tracer.Named("UserRepository::GetById"))
+	ctx, span := tracer.Open(ctx)
 	defer span.Close()
-	var user User
+
+	var user *User
 	if err := r.DB.Table().Do(ctx, func(ctx context.Context, s table.Session) error {
-		ctx, span := tracer.Open(ctx, tracer.Named("UserRepository::GetById::Do"))
+		ctx, span := tracer.Open(ctx, tracer.Named("UserRepository::getUser::Do"))
 		defer span.Close()
-		_, res, err := userQueryExecutor(ctx, s)
+		var err error
+		user, err = userQueryExecutor(ctx, s)
 		if err != nil {
-			return fmt.Errorf("UserRepository::GetUser: %w", err)
+			return fmt.Errorf("userRepository::getUser::do: %w", err)
 		}
-		_, span = tracer.Open(ctx, tracer.Named("UserRepository::GetById::DoUser"))
-		defer span.Close()
-		defer res.Close()
-		if !res.NextResultSet(ctx) {
-			return fmt.Errorf("не нашел result set для пользователя")
-		}
-		if !res.NextRow() {
-			return fmt.Errorf("пользователь не найден")
-		}
-		if err := user.Scan(ctx, res); err != nil {
-			return fmt.Errorf("скан пользователя %v: %w", res, err)
-		}
-		return r.ApplyEvents(ctx, &user)
+		return nil
 	}, table.WithIdempotent()); err != nil {
 		return nil, err
 	}
-	return &user, nil
+	return user, nil
 }
 
 var ErrNotFound = fmt.Errorf("not found")
@@ -304,7 +340,7 @@ func (r *UserRepository) IsResident(ctx context.Context, userID int64) bool {
 		r.log.Error("Проблема определения резидентности", zap.Error(err))
 		return false
 	}
-	return user.IsApprovedResident || user.Registration != nil
+	return user.IsApprovedResident
 }
 
 func (r *UserRepository) IsAdmin(ctx context.Context, userID int64) bool {
@@ -316,7 +352,7 @@ func (r *UserRepository) IsAdmin(ctx context.Context, userID int64) bool {
 func GenerateApproveCode(ctx context.Context, length int) string {
 	ctx, span := tracer.Open(ctx, tracer.Named("GenerateApproveCode"))
 	defer span.Close()
-	var alphabet []rune = []rune("123456789ABCEHKMOPTX")
+	alphabet := []rune("123456789ABCEHKMOPTX")
 	var code []rune
 	for i := 0; i < length; i++ {
 		code = append(code, alphabet[rand.Intn(len(alphabet))])

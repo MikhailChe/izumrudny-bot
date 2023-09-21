@@ -109,7 +109,7 @@ func (ch *carsHandler) HandleAddCar(ctx context.Context, c tele.Context) error {
 	}
 	rows = append(rows, markup.Row(*ch.upperMenu))
 	markup.Inline(rows...)
-	return c.EditOrReply(fmt.Sprintf("Введите номер своего автомобиля: %s\n%s", c.Args(), licensePlateHints(currentPlate)), markup)
+	return c.EditOrReply(ctx, fmt.Sprintf("Введите номер своего автомобиля: %s\n%s", c.Args(), licensePlateHints(currentPlate)), markup)
 }
 
 func (ch *carsHandler) ConfirmPlateHandler(ctx context.Context, c tele.Context) error {
@@ -125,5 +125,5 @@ func (ch *carsHandler) ConfirmPlateHandler(ctx context.Context, c tele.Context) 
 	}
 	markup := &tele.ReplyMarkup{}
 	markup.Inline(markup.Row(*ch.upperMenu))
-	return c.EditOrReply(`Добавили ваш номер автомобиля в базу. Теперь с вами смогут связаться по нему.`)
+	return c.EditOrReply(ctx, `Добавили ваш номер автомобиля в базу. Теперь с вами смогут связаться по нему.`)
 }

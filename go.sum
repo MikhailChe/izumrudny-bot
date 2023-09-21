@@ -304,6 +304,8 @@ github.com/mikhailche/telebot v0.0.0-20230914095709-3b805e1a30d6 h1:KMvSqJ5gWR88
 github.com/mikhailche/telebot v0.0.0-20230914095709-3b805e1a30d6/go.mod h1:LXNpkNA+XopV9Rn9+UU6rSr4dlS7QRCMg5B+x+mvCe4=
 github.com/mikhailche/telebot v0.0.0-20230919175135-0218045249fa h1:PvFw9v7jDjeSldQiANtmFJkLjfhDKn8diW+kamJKGjk=
 github.com/mikhailche/telebot v0.0.0-20230919175135-0218045249fa/go.mod h1:LXNpkNA+XopV9Rn9+UU6rSr4dlS7QRCMg5B+x+mvCe4=
+github.com/mikhailche/telebot v0.0.0-20230920205458-6d5a982b8ef0 h1:szoaJnJ147N//H3acW9SU65HwfbDSSx1LmYodHRS/sQ=
+github.com/mikhailche/telebot v0.0.0-20230920205458-6d5a982b8ef0/go.mod h1:LXNpkNA+XopV9Rn9+UU6rSr4dlS7QRCMg5B+x+mvCe4=
 github.com/mitchellh/cli v1.1.0/go.mod h1:xcISNoH86gajksDmfB23e/pu+B+GeFRMYmoHXxx3xhI=
 github.com/mitchellh/go-homedir v1.1.0/go.mod h1:SfyaCUpYCn1Vlf4IUYiD9fPX4A5wJrkLzIz1N1q0pr0=
 github.com/mitchellh/go-testing-interface v1.0.0/go.mod h1:kRemZodwjscx+RGhAo8eIhFbs2+BFgRtFPeD/KE+zxI=
