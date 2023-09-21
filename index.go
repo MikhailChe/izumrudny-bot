@@ -49,7 +49,7 @@ func Handler(ctx context.Context, body []byte) (*LambdaResponse, error) {
 		panic("nil appInstance.bot.bot")
 	}
 	if err := appInstance.Bot.Bot.ProcessUpdateCtx(ctx, update); err != nil {
-		appInstance.Log.Error("Error processing update", zap.Error(err))
+		appInstance.Log.Error("Error processing update", zap.Error(err), zap.Any("update", update))
 	}
 
 	span.Close()

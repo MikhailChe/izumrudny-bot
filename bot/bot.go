@@ -169,15 +169,17 @@ func (b *TBot) Init(
 	var authMiddleware telebot.MiddlewareFunc = func(next telebot.HandlerFunc) telebot.HandlerFunc {
 		return func(ctx context.Context, c telebot.Context) error {
 			ctx, span := tracer.Open(ctx, tracer.Named("AuthMiddleware"))
-			if userRepository.IsResident(ctx, c.Sender().ID) {
+			if c.Chat().Type == telebot.ChatPrivate && userRepository.IsResident(ctx, c.Sender().ID) {
 				span.Close()
 				return next(ctx, c)
 			}
 			defer span.Close()
 			var rows []telebot.Row
-			rows = append(rows, markup.Row(*registrationService.EntryPoint()))
+			if c.Chat().Type == telebot.ChatPrivate {
+				rows = append(rows, markup.Row(*registrationService.EntryPoint()))
+			}
 			rows = append(rows, markup.Row(markup.HelpMainMenuBtn))
-			return c.EditOrSend(ctx, `Этот раздел только для резидентов изумрудного бора. 
+			return c.EditOrSend(ctx, `Этот раздел только для резидентов изумрудного бора. И доступен только в личном общении с ботом.
 Нажмите клавишу регистрации, чтобы получить доступ. Регистрация может занять от нескольких минут до нескольких дней.
 
 После регистрации вы получите доступ к коду от домофона 🔑, ссылкам на видеокамеры, установленные в районе 📽.

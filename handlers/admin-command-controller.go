@@ -42,6 +42,10 @@ func AdminCommandController(mux botMux, adminAuth telebot.MiddlewareFunc, userRe
 		}
 
 		if err := bot.SetCommands([]telebot.Command{
+			{Text: "help", Description: "Справка"},
+			{Text: "chats", Description: "Чаты района"},
+			{Text: "phones", Description: "Телефоны служб"},
+			{Text: "status", Description: "Статус текущих проблем в районе."},
 			{Text: "whois", Description: "Узнать информацию о пользователе"},
 		},
 			telebot.CommandScope{Type: telebot.CommandScopeAllChatAdmin},

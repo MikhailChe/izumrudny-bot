@@ -40,9 +40,7 @@ func newTelegramRegistrator(log *zap.Logger, userRepository *repository.UserRepo
 }
 
 func (r *telegramRegistrator) EntryPoint() *telebot.Btn {
-	markup := &telebot.ReplyMarkup{}
-	e := markup.Data("📒 Начать регистрацию", "registration")
-	return &e
+	return &markup.RegisterBtn
 }
 
 func (r *telegramRegistrator) Register(bot HandleRegistrator) {
