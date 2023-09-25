@@ -101,7 +101,7 @@ func (b *TBot) Init(
 	groupChatAdminAuthMiddleware := adminAuthMiddleware
 
 	log.Info("Adding admin command controller")
-	handlers.AdminCommandController(bot.Group(), adminAuthMiddleware, userRepository, groupChats)
+	handlers.AdminCommandController(bot.Group(), adminAuthMiddleware, userRepository, groupChats, houses)
 
 	log.Info("Adding replay update controller")
 	handlers.ReplayUpdateController(bot.Group(), adminAuthMiddleware, updateLogRepository, bot)

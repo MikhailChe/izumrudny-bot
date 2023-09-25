@@ -24,6 +24,7 @@ type Car struct {
 
 type Apartment struct {
 	HouseNumber     string `json:"house"`
+	HouseID         uint64 `json:"house_id"`
 	ApartmentNumber string `json:"appartment"`
 	NeedApprove     bool   `json:"need_approve"`
 }
@@ -65,14 +66,47 @@ type tRegistration struct {
 	Events tRegistrationEvents
 }
 
+type tPrivatePropertyItem struct {
+	houseID         uint64
+	apartmentNumber string
+	approved        bool
+}
+
+func (ppi tPrivatePropertyItem) Key() string {
+	return fmt.Sprintf("%d:%s", ppi.houseID, ppi.apartmentNumber)
+}
+
+type tPrivatePropertySet struct {
+	items map[string]tPrivatePropertyItem
+}
+
+func (p *tPrivatePropertySet) Add(HouseID uint64, ApartmentNumber string) {
+	ppi := tPrivatePropertyItem{houseID: HouseID, apartmentNumber: ApartmentNumber}
+	p.items[ppi.Key()] = ppi
+}
+
+func (p *tPrivatePropertySet) Approve(id uint64, apartment string) {
+	ppi := p.items[tPrivatePropertyItem{houseID: id, apartmentNumber: apartment}.Key()]
+	ppi.approved = true
+	p.items[ppi.Key()] = ppi
+}
+
+func (p *tPrivatePropertySet) RemoveIfNotApproved(id uint64, apartment string) {
+	ppi := p.items[tPrivatePropertyItem{houseID: id, apartmentNumber: apartment}.Key()]
+	if !ppi.approved {
+		delete(p.items, ppi.Key())
+	}
+}
+
 type User struct {
 	ID                 int64
 	Username           string
 	Apartments         UserApartments
 	Cars               Cars
 	IsApprovedResident bool
-	Registration       *tRegistration `json:"-"`
-	Events             []any          `json:"-"`
+	Registration       *tRegistration      `json:"-"`
+	PrivateProperty    tPrivatePropertySet `json:"-"`
+	Events             []any               `json:"-"`
 }
 
 func (u *User) Scan(ctx context.Context, res result.Result) error {
@@ -108,7 +142,7 @@ func (u *UserEventRecord) Scan(ctx context.Context, res result.Result) error {
 	); err != nil {
 		return fmt.Errorf("скан UserEventRecord: %w", err)
 	}
-	var event UserEvent = SelectType(ctx, u.Type)
+	var event = SelectType(ctx, u.Type)
 	if event == nil {
 		return fmt.Errorf("не удалось найти тип для %s", u.Type)
 	}

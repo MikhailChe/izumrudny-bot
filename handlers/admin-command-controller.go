@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"mikhailche/botcomod/handlers/middleware"
 	"mikhailche/botcomod/lib/tracer.v2"
 	"strconv"
 	"strings"
 
-	repositories "mikhailche/botcomod/repository"
+	"mikhailche/botcomod/repository"
 	"mikhailche/botcomod/services"
 
 	"github.com/mikhailche/telebot"
@@ -20,7 +21,7 @@ const BotDescription = `Я бот микрорайона Изумрудный Б
 Меня разрабатывают сами жители района на добровольных началах. Если есть предложения - напишите их мне, а я передам разработчикам.
 Зарегистрированные резиденты в скором времени смогут искать друг друга по номеру авто или квартиры.`
 
-func AdminCommandController(mux botMux, adminAuth telebot.MiddlewareFunc, userRepository *repositories.UserRepository, groupChatService *services.GroupChatService) {
+func AdminCommandController(mux botMux, adminAuth telebot.MiddlewareFunc, userRepository *repository.UserRepository, groupChatService *services.GroupChatService, houses func() repository.THouses) {
 	mux.Use(adminAuth)
 	mux.Handle("/chatidlink", func(ctx context.Context, c telebot.Context) error {
 		ctx, span := tracer.Open(ctx, tracer.Named("/chatidlink"))
@@ -186,5 +187,16 @@ func AdminCommandController(mux botMux, adminAuth telebot.MiddlewareFunc, userRe
 			sb.WriteRune('\n')
 		}
 		return c.Send(ctx, sb.String(), telebot.ModeHTML)
+	})
+
+	mux.Handle("/migrate_events", func(ctx context.Context, c telebot.Context) error {
+		return userRepository.MigrateEvents(ctx, middleware.YdbSessionFromContext(ctx), func(number string) (uint64, error) {
+			for _, h := range houses() {
+				if h.Number == number {
+					return h.ID, nil
+				}
+			}
+			return 0, fmt.Errorf("houseByNumber %s: not found", number)
+		})
 	})
 }
