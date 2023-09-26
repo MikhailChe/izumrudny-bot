@@ -3,6 +3,8 @@ package repository
 import (
 	"context"
 	"fmt"
+	"go.uber.org/zap"
+	"mikhailche/botcomod/handlers/middleware/ydbctx"
 	"mikhailche/botcomod/lib/tracer.v2"
 	"path"
 
@@ -56,11 +58,12 @@ func (h *THouses) Scan(ctx context.Context, res result.Result) error {
 }
 
 type HouseRepository struct {
-	DB *ydb.Driver
+	DB  *ydb.Driver
+	log *zap.Logger
 }
 
-func NewHouseRepository(driver *ydb.Driver) *HouseRepository {
-	return &HouseRepository{driver}
+func NewHouseRepository(driver *ydb.Driver, log *zap.Logger) *HouseRepository {
+	return &HouseRepository{driver, log}
 }
 
 func (h *HouseRepository) Init(ctx context.Context) error {
@@ -82,18 +85,31 @@ func (h *HouseRepository) GetHouses(ctx context.Context) (THouses, error) {
 	ctx, span := tracer.Open(ctx, tracer.Named("HouseRepository::GetHouses"))
 	defer span.Close()
 	var houses THouses
-	if err := h.DB.Table().Do(ctx, func(ctx context.Context, s table.Session) error {
+	h.log.Debug("HouseRepository::GetHouses")
+	defer h.log.Debug("Закончил HouseRepository::GetHouses")
+	doGetHouse := func(ctx context.Context, s table.Session) error {
+		ctx, span := tracer.Open(ctx)
+		defer span.Close()
 		_, res, err := s.Execute(ctx, table.DefaultTxControl(), `SELECT * FROM house`, table.NewQueryParameters())
 		if err != nil {
 			return fmt.Errorf("чтение домов: %w", err)
 		}
-		defer res.Close()
+		defer func(res result.Result) {
+			_ = res.Close()
+		}(res)
 		if !res.NextResultSet(ctx) {
 			return fmt.Errorf("не нашел результатов при чтении домов, а должен был найти хотя бы один")
 		}
 		err = houses.Scan(ctx, res)
 		return err
-	}, table.WithIdempotent()); err != nil {
+	}
+	var err error
+	if sess := ydbctx.YdbSessionFromContext(ctx); sess != nil {
+		err = doGetHouse(ctx, sess)
+	} else {
+		err = h.DB.Table().Do(ctx, doGetHouse, table.WithIdempotent())
+	}
+	if err != nil {
 		return nil, err
 	}
 	return houses, nil

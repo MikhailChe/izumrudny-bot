@@ -48,9 +48,11 @@ func Handler(ctx context.Context, body []byte) (*LambdaResponse, error) {
 	if appInstance.Bot.Bot == nil {
 		panic("nil appInstance.bot.bot")
 	}
+	appInstance.Log.Debug("Запускаем процессинг обновления")
 	if err := appInstance.Bot.Bot.ProcessUpdateCtx(ctx, update); err != nil {
 		appInstance.Log.Error("Error processing update", zap.Error(err), zap.Any("update", update))
 	}
+	appInstance.Log.Debug("Завершили процессинг обновления")
 
 	span.Close()
 	if chromeTrace, err := span.PrintTrace(); err == nil {

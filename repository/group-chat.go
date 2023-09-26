@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"mikhailche/botcomod/handlers/middleware/ydbctx"
 	"mikhailche/botcomod/lib/tracer.v2"
 	"path"
 
@@ -88,21 +89,32 @@ func (h *ChatRepository) Init(ctx context.Context) error {
 func (h *ChatRepository) GetGroupChats(ctx context.Context) (TGroupChats, error) {
 	ctx, span := tracer.Open(ctx, tracer.Named("ChatRepository::GetGroupChats"))
 	defer span.Close()
+	h.log.Debug("ChatRepository::GetGroupChats")
+	defer h.log.Debug("Закончил ChatRepository::GetGroupChats")
 	var chats TGroupChats
-	if err := h.db.Table().Do(ctx, func(ctx context.Context, s table.Session) error {
+	doGetGroupChats := func(ctx context.Context, s table.Session) error {
 		ctx, span := tracer.Open(ctx)
 		defer span.Close()
 		_, res, err := s.Execute(ctx, table.DefaultTxControl(), `SELECT * FROM groupChat ORDER BY order`, table.NewQueryParameters())
 		if err != nil {
 			return fmt.Errorf("чтение чатов: %w", err)
 		}
-		defer res.Close()
+		defer func(res result.Result) {
+			_ = res.Close()
+		}(res)
 		if !res.NextResultSet(ctx) {
 			return fmt.Errorf("не нашел результатов при чтении чатов, а должен был найти хотя бы один")
 		}
 		err = chats.Scan(ctx, res)
 		return err
-	}, table.WithIdempotent()); err != nil {
+	}
+	var err error
+	if sess := ydbctx.YdbSessionFromContext(ctx); sess != nil {
+		err = doGetGroupChats(ctx, sess)
+	} else {
+		err = h.db.Table().Do(ctx, doGetGroupChats, table.WithIdempotent())
+	}
+	if err != nil {
 		return nil, err
 	}
 	return chats, nil

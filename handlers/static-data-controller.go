@@ -15,7 +15,7 @@ func StaticDataController(mux botMux, groupChats *services.GroupChatService) {
 		defer span.Close()
 		return c.EditOrSend(ctx,
 			"Привет. Я помогу сориентироваться в Изумрудном Бору.\nВы всегда можете вызвать это меню командой /help",
-			markup.DynamicHelpMenuMarkup(ctx, c, groupChats),
+			markup.DynamicHelpMenuMarkup(ctx),
 		)
 	}
 	mux.Handle("/help", helpHandler)

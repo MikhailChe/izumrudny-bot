@@ -92,7 +92,10 @@ func (p *tPrivatePropertySet) Approve(id uint64, apartment string) {
 	if p.Items == nil {
 		p.Items = make(map[string]tPrivatePropertyItem)
 	}
-	ppi := p.Items[tPrivatePropertyItem{HouseID: id, ApartmentNumber: apartment}.Key()]
+	ppi, ok := p.Items[tPrivatePropertyItem{HouseID: id, ApartmentNumber: apartment}.Key()]
+	if !ok {
+		return
+	}
 	ppi.Approved = true
 	p.Items[ppi.Key()] = ppi
 }
@@ -102,9 +105,10 @@ func (p *tPrivatePropertySet) RemoveIfNotApproved(id uint64, apartment string) {
 		p.Items = make(map[string]tPrivatePropertyItem)
 	}
 	ppi := p.Items[tPrivatePropertyItem{HouseID: id, ApartmentNumber: apartment}.Key()]
-	if !ppi.Approved {
-		delete(p.Items, ppi.Key())
+	if ppi.Approved {
+		return
 	}
+	delete(p.Items, ppi.Key())
 }
 
 type User struct {
@@ -172,8 +176,12 @@ func (u *UserEventRecord) Scan(ctx context.Context, res result.Result) error {
 	return nil
 }
 
+type ydbDriver interface {
+	Table() table.Client
+}
+
 type UserRepository struct {
-	DB  *ydb.Driver
+	DB  ydbDriver
 	log *zap.Logger
 }
 
@@ -190,8 +198,9 @@ type getUserOption = func(ctx context.Context, s table.Session) (*User, error)
 func (r *UserRepository) postGetUserOptionToUserScanner(ctx context.Context, s table.Session, res result.Result, err error) (*User, error) {
 	ctx, span := tracer.Open(ctx)
 	defer span.Close()
+	defer r.log.Debug("Закончил доставать пользователя из базы")
 	if err != nil {
-		return nil, fmt.Errorf("UserRepository::GetUser: %w", err)
+		return nil, fmt.Errorf("UserRepository::postGetUserOptionToUserScanner: %w", err)
 	}
 	defer res.Close()
 	if !res.NextResultSet(ctx) {
@@ -245,6 +254,7 @@ SELECT * FROM user WHERE username = $username LIMIT 1;`,
 func (r *UserRepository) applyEvents(ctx context.Context, s table.Session, user *User) error {
 	ctx, span := tracer.Open(ctx, tracer.Named("UserRepository::applyEvents"))
 	defer span.Close()
+	defer r.log.Debug("Закончил применять события")
 	_, res, err := s.Execute(ctx, table.DefaultTxControl(),
 		`DECLARE $id AS Int64;
 SELECT * FROM user_event WHERE user = $id ORDER BY user, timestamp, id;`,
@@ -262,7 +272,7 @@ SELECT * FROM user_event WHERE user = $id ORDER BY user, timestamp, id;`,
 		if err := event.Scan(ctx, res); err != nil {
 			return fmt.Errorf("не смог события пользователя: %w", err)
 		}
-		r.log.Info("Применяю собятие", zap.Any("event", event))
+		r.log.Debug("Применяю собятие", zap.Any("event", event))
 		event.Event.Apply(ctx, user)
 		user.Events = append(user.Events, event)
 	}
@@ -301,7 +311,7 @@ func PutCurrentUserToContext(ctx context.Context, user *User) context.Context {
 func (r *UserRepository) GetUser(ctx context.Context, userQueryExecutor getUserOption) (*User, error) {
 	ctx, span := tracer.Open(ctx)
 	defer span.Close()
-
+	defer r.log.Debug("Закончил UserRepository::GetUser")
 	var user *User
 	if err := r.DB.Table().Do(ctx, func(ctx context.Context, s table.Session) error {
 		ctx, span := tracer.Open(ctx, tracer.Named("UserRepository::getUser::Do"))
@@ -324,7 +334,7 @@ func (r *UserRepository) FindByAppartment(ctx context.Context, house string, app
 	ctx, span := tracer.Open(ctx, tracer.Named("UserRepository::FindByAppartment"))
 	defer span.Close()
 	var userIDs []int64
-	if err := (*r.DB).Table().Do(ctx, func(ctx context.Context, s table.Session) error {
+	if err := r.DB.Table().Do(ctx, func(ctx context.Context, s table.Session) error {
 		query := "SELECT `id` FROM `user`;"
 		_, res, err := s.Execute(ctx, table.DefaultTxControl(), query, table.NewQueryParameters())
 		if err != nil {
@@ -361,7 +371,7 @@ func (r *UserRepository) FindByAppartment(ctx context.Context, house string, app
 func (r *UserRepository) UpsertUsername(ctx context.Context, userID int64, username string) {
 	ctx, span := tracer.Open(ctx, tracer.Named("UserRepository::UpsertUsername"))
 	defer span.Close()
-	if err := (*r.DB).Table().Do(ctx, func(ctx context.Context, s table.Session) error {
+	if err := r.DB.Table().Do(ctx, func(ctx context.Context, s table.Session) error {
 		ctx, span := tracer.Open(ctx, tracer.Named("Do Upsert user"))
 		defer span.Close()
 		_, _, err := s.Execute(ctx,

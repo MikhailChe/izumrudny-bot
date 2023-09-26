@@ -57,7 +57,7 @@ func newApp(ctx context.Context) *App {
 		log.Fatal("Ошибка инициализации пользовательского репозитория", zap.Error(err))
 	}
 
-	housesRepository := repository.NewHouseRepository(ydbDriver)
+	housesRepository := repository.NewHouseRepository(ydbDriver, log)
 	houseService := services.NewHouseService(ctx, housesRepository)
 
 	groupChatRepository := repository.NewGroupChatRepository(ydbDriver, log.Named("groupChatRepository"))

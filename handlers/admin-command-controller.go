@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"mikhailche/botcomod/handlers/middleware/ydbctx"
 	"mikhailche/botcomod/lib/tracer.v2"
 	"strconv"
 	"strings"
@@ -197,18 +196,4 @@ func AdminCommandController(mux botMux, adminAuth telebot.MiddlewareFunc, userRe
 		return c.Send(ctx, sb.String(), telebot.ModeHTML)
 	})
 
-	mux.Handle("/migrate_events", func(ctx context.Context, c telebot.Context) error {
-		if err := userRepository.MigrateEvents(ctx, ydbctx.YdbSessionFromContext(ctx), func(number string) (uint64, error) {
-			for _, h := range houses() {
-				if h.Number == number {
-					return h.ID, nil
-				}
-			}
-			return 0, fmt.Errorf("houseByNumber %s: not found", number)
-		}); err != nil {
-			return c.EditOrReply(ctx, fmt.Sprintf("Something went wrong: %v", err))
-		}
-		return c.EditOrReply(ctx, "AllOk")
-
-	})
 }

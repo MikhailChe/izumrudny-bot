@@ -16,9 +16,9 @@ func UpsertUsernameMiddleware(
 ) func(hf telebot.HandlerFunc) telebot.HandlerFunc {
 	return func(hf telebot.HandlerFunc) telebot.HandlerFunc {
 		return func(ctx context.Context, c telebot.Context) error {
+			err := hf(ctx, c)
 			ctx, span := tracer.Open(ctx, tracer.Named("UpsertUsername middleware"))
 			defer span.Close()
-			err := hf(ctx, c)
 			userRepository.UpsertUsername(ctx, c.Sender().ID, c.Sender().Username)
 			if err := telegramChatUpserter(ctx, *c.Chat()); err != nil {
 				log.Error("telegramChatUpserter middleware failed", zap.Error(err))
