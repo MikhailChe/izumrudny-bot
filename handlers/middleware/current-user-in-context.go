@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"github.com/mikhailche/telebot"
+	"mikhailche/botcomod/handlers/middleware/ydbctx"
 	"mikhailche/botcomod/lib/tracer.v2"
 	"mikhailche/botcomod/repository"
 )
@@ -11,7 +12,7 @@ func CurrentUserInContext(users *repository.UserRepository) telebot.MiddlewareFu
 	return func(hf telebot.HandlerFunc) telebot.HandlerFunc {
 		return func(ctx context.Context, c telebot.Context) error {
 			mwctx, span := tracer.Open(ctx)
-			sess := YdbSessionFromContext(mwctx)
+			sess := ydbctx.YdbSessionFromContext(mwctx)
 			if sess != nil {
 				user, err := users.GetUser(mwctx, users.ByID(c.Sender().ID))
 				if err == nil {

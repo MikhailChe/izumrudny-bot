@@ -213,7 +213,15 @@ func (r *telegramRegistrator) HandleStartRegistration(ctx context.Context, c tel
 			confirmMenu,
 		)
 	}
-	code, err := r.userRepository.StartRegistration(ctx, c.Sender().ID, int64(c.Update().ID), houseNumber, fmt.Sprint(appartmentNumber))
+	houseID := func() uint64 {
+		for _, house := range r.houses() {
+			if house.Number == houseNumber {
+				return house.ID
+			}
+		}
+		return 0
+	}
+	code, err := r.userRepository.StartRegistration(ctx, c.Sender().ID, int64(c.Update().ID), houseID(), houseNumber, fmt.Sprint(appartmentNumber))
 	if err != nil {
 		if serr := c.EditOrReply(ctx, `Извините, в процессе регистрации произошла ошибка. Исправим как можно скорее.`); serr != nil {
 			return serr

@@ -4,7 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/google/uuid"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table/result"
+	"go.uber.org/zap"
+	"mikhailche/botcomod/handlers/middleware/ydbctx"
 	"mikhailche/botcomod/lib/errors"
 	"mikhailche/botcomod/lib/tracer.v2"
 	"reflect"
@@ -77,13 +80,16 @@ func (e *StartRegistrationEvent) Apply(ctx context.Context, u *User) {
 	u.Registration = &tRegistration{
 		Events: tRegistrationEvents{Start: e},
 	}
+	u.PrivateProperty.Add(e.HouseID, e.Apartment)
 }
 
 func (e *ConfirmRegistrationEvent) Apply(ctx context.Context, u *User) {
 	ctx, span := tracer.Open(ctx, tracer.Named("confirmRegistrationEvent::Apply"))
 	defer span.Close()
+	u.PrivateProperty.Approve(u.Registration.Events.Start.HouseID, u.Registration.Events.Start.Apartment)
 	u.Apartments = append(u.Apartments, Apartment{
 		HouseNumber:     u.Registration.Events.Start.HouseNumber,
+		HouseID:         u.Registration.Events.Start.HouseID,
 		ApartmentNumber: u.Registration.Events.Start.Apartment,
 		NeedApprove:     false,
 	})
@@ -94,7 +100,10 @@ func (e *ConfirmRegistrationEvent) Apply(ctx context.Context, u *User) {
 func (e *FailRegistrationEvent) Apply(ctx context.Context, u *User) {
 	ctx, span := tracer.Open(ctx, tracer.Named("failRegistrationEvent::Apply"))
 	defer span.Close()
-	u.Registration = nil
+	if u.Registration != nil {
+		u.PrivateProperty.RemoveIfNotApproved(u.Registration.Events.Start.HouseID, u.Registration.Events.Start.Apartment)
+		u.Registration = nil
+	}
 }
 
 func (e *RegisterCarLicensePlateEvent) Apply(ctx context.Context, u *User) {
@@ -169,32 +178,49 @@ func SelectType(ctx context.Context, typeName string) UserEvent {
 	return nil
 }
 
-func (r *UserRepository) LogEvent(ctx context.Context, userID int64, event UserEvent, logEventOptions ...any) error {
+type logEventParameters struct {
+	Now    time.Time
+	UUID   string
+	DryRun bool
+}
+
+type logEventOption func(parameters *logEventParameters)
+
+func (r *UserRepository) LogEvent(ctx context.Context, userID int64, event UserEvent, logEventOptions ...logEventOption) error {
 	ctx, span := tracer.Open(ctx, tracer.Named("UserRepository::LogEvent"))
 	defer span.Close()
-	now := time.Now()
-	for _, opt := range logEventOptions {
-		if timeFn, ok := opt.(func() time.Time); ok {
-			now = timeFn()
-		}
+	var params logEventParameters
+	params.Now = time.Now()
+	params.UUID = uuid.New().String()
+
+	for _, fn := range logEventOptions {
+		fn(&params)
 	}
+
 	eventBytes, err := json.Marshal(event)
 	if err != nil {
 		return fmt.Errorf("сериализация события %v: %w", event, err)
 	}
-	return (*r.DB).Table().Do(ctx, func(ctx context.Context, s table.Session) error {
+	r.log.Debug("LogEvent", zap.Any("event", event), zap.Any("params", params))
+	if params.DryRun {
+		return nil
+	}
+
+	upsertOperation := func(ctx context.Context, s table.Session) error {
 		_, _, err := s.Execute(
 			ctx,
 			table.DefaultTxControl(),
 			"DECLARE $user AS Int64;"+
 				"DECLARE $timestamp AS Timestamp;"+
+				"DECLARE $id AS String;"+
 				"DECLARE $type AS String;"+
 				"DECLARE $event AS JsonDocument;"+
 				"UPSERT INTO `user_event` (user, timestamp, id, type, event)"+
-				"VALUES ($user, $timestamp, CAST(RandomUUID($timestamp) AS String), $type, $event);",
+				"VALUES ($user, $timestamp, $id, $type, $event);",
 			table.NewQueryParameters(
 				table.ValueParam("$user", types.Int64Value(userID)),
-				table.ValueParam("$timestamp", types.TimestampValueFromTime(now)),
+				table.ValueParam("$timestamp", types.TimestampValueFromTime(params.Now)),
+				table.ValueParam("$id", types.StringValueFromString(params.UUID)),
 				table.ValueParam("$type", types.StringValueFromString(event.FQDN())),
 				table.ValueParam("$event", types.JSONDocumentValueFromBytes(eventBytes)),
 			),
@@ -203,7 +229,24 @@ func (r *UserRepository) LogEvent(ctx context.Context, userID int64, event UserE
 			return fmt.Errorf("upsert user_event: %w", err)
 		}
 		return nil
-	}, table.WithIdempotent())
+	}
+	if sess := ydbctx.YdbSessionFromContext(ctx); sess != nil {
+		return upsertOperation(ctx, sess)
+	}
+	return (*r.DB).Table().Do(ctx, upsertOperation, table.WithIdempotent())
+}
+
+func withFromEventRecord(record UserEventRecord) logEventOption {
+	return func(parameters *logEventParameters) {
+		parameters.Now = record.Timestamp
+		parameters.UUID = record.ID
+	}
+}
+
+func withDryRun() logEventOption {
+	return func(parameters *logEventParameters) {
+		parameters.DryRun = true
+	}
 }
 
 func (r *UserRepository) MigrateEvents(ctx context.Context, s table.Session, houseIdByHouseNumber func(number string) (uint64, error)) error {
@@ -247,7 +290,7 @@ SELECT * FROM user_event WHERE type = "*bot.startRegistrationEvent";`,
 		if err != nil {
 			return fmt.Errorf("MigrateEvents: %w", err)
 		}
-		err := r.LogEvent(ctx, record.User, event, func() time.Time { return record.Timestamp })
+		err := r.LogEvent(ctx, record.User, event, withFromEventRecord(record))
 		if err != nil {
 			return fmt.Errorf("MigrateEvents: %w", err)
 		}

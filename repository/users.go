@@ -67,34 +67,43 @@ type tRegistration struct {
 }
 
 type tPrivatePropertyItem struct {
-	houseID         uint64
-	apartmentNumber string
-	approved        bool
+	HouseID         uint64
+	ApartmentNumber string
+	Approved        bool
 }
 
 func (ppi tPrivatePropertyItem) Key() string {
-	return fmt.Sprintf("%d:%s", ppi.houseID, ppi.apartmentNumber)
+	return fmt.Sprintf("%d:%s", ppi.HouseID, ppi.ApartmentNumber)
 }
 
 type tPrivatePropertySet struct {
-	items map[string]tPrivatePropertyItem
+	Items map[string]tPrivatePropertyItem
 }
 
 func (p *tPrivatePropertySet) Add(HouseID uint64, ApartmentNumber string) {
-	ppi := tPrivatePropertyItem{houseID: HouseID, apartmentNumber: ApartmentNumber}
-	p.items[ppi.Key()] = ppi
+	if p.Items == nil {
+		p.Items = make(map[string]tPrivatePropertyItem)
+	}
+	ppi := tPrivatePropertyItem{HouseID: HouseID, ApartmentNumber: ApartmentNumber}
+	p.Items[ppi.Key()] = ppi
 }
 
 func (p *tPrivatePropertySet) Approve(id uint64, apartment string) {
-	ppi := p.items[tPrivatePropertyItem{houseID: id, apartmentNumber: apartment}.Key()]
-	ppi.approved = true
-	p.items[ppi.Key()] = ppi
+	if p.Items == nil {
+		p.Items = make(map[string]tPrivatePropertyItem)
+	}
+	ppi := p.Items[tPrivatePropertyItem{HouseID: id, ApartmentNumber: apartment}.Key()]
+	ppi.Approved = true
+	p.Items[ppi.Key()] = ppi
 }
 
 func (p *tPrivatePropertySet) RemoveIfNotApproved(id uint64, apartment string) {
-	ppi := p.items[tPrivatePropertyItem{houseID: id, apartmentNumber: apartment}.Key()]
-	if !ppi.approved {
-		delete(p.items, ppi.Key())
+	if p.Items == nil {
+		p.Items = make(map[string]tPrivatePropertyItem)
+	}
+	ppi := p.Items[tPrivatePropertyItem{HouseID: id, ApartmentNumber: apartment}.Key()]
+	if !ppi.Approved {
+		delete(p.Items, ppi.Key())
 	}
 }
 
@@ -104,14 +113,15 @@ type User struct {
 	Apartments         UserApartments
 	Cars               Cars
 	IsApprovedResident bool
-	Registration       *tRegistration      `json:"-"`
-	PrivateProperty    tPrivatePropertySet `json:"-"`
-	Events             []any               `json:"-"`
+	Registration       *tRegistration `json:"-"`
+	PrivateProperty    tPrivatePropertySet
+	Events             []any `json:"-"`
 }
 
 func (u *User) Scan(ctx context.Context, res result.Result) error {
 	ctx, span := tracer.Open(ctx, tracer.Named("User::Scan"))
 	defer span.Close()
+	u.PrivateProperty.Items = make(map[string]tPrivatePropertyItem)
 	return res.ScanNamed(
 		named.Required("id", &u.ID),
 		named.OptionalWithDefault("appartments", &u.Apartments),
@@ -119,6 +129,15 @@ func (u *User) Scan(ctx context.Context, res result.Result) error {
 		named.OptionalWithDefault("is_approved_resident", &u.IsApprovedResident),
 		named.OptionalWithDefault("username", &u.Username),
 	)
+}
+
+func (u *User) HavePendingRegistration() bool {
+	for _, v := range u.PrivateProperty.Items {
+		if v.Approved == false {
+			return true
+		}
+	}
+	return false
 }
 
 type UserEventRecord struct {
@@ -394,8 +413,8 @@ func GenerateApproveCode(ctx context.Context, length int) string {
 	return string(code)
 }
 
-func (r *UserRepository) StartRegistration(ctx context.Context, userID int64, updateID int64, houseNumber string, appartment string) (string, error) {
-	ctx, span := tracer.Open(ctx, tracer.Named("UserRepository::StartRegistration"))
+func (r *UserRepository) StartRegistration(ctx context.Context, userID int64, updateID int64, houseID uint64, houseNumber string, apartment string) (string, error) {
+	ctx, span := tracer.Open(ctx)
 	defer span.Close()
 	const CodeLength = 5
 	approveCode := GenerateApproveCode(ctx, CodeLength)
@@ -403,14 +422,21 @@ func (r *UserRepository) StartRegistration(ctx context.Context, userID int64, up
 	for i := 0; i < 5; i++ {
 		invalidCodes = append(invalidCodes, GenerateApproveCode(ctx, CodeLength))
 	}
-	if err := r.LogEvent(ctx, userID, &StartRegistrationEvent{updateID, houseNumber, appartment, approveCode, invalidCodes}); err != nil {
+	if err := r.LogEvent(ctx, userID, &StartRegistrationEvent{
+		UpdateID:     updateID,
+		HouseID:      houseID,
+		HouseNumber:  houseNumber,
+		Apartment:    apartment,
+		ApproveCode:  approveCode,
+		InvalidCodes: invalidCodes,
+	}); err != nil {
 		return "", fmt.Errorf("регистрация пользователя: %w", err)
 	}
 	return approveCode, nil
 }
 
 func (r *UserRepository) ConfirmRegistration(ctx context.Context, userID int64, event ConfirmRegistrationEvent) error {
-	ctx, span := tracer.Open(ctx, tracer.Named("UserRepository::ConfirmRegistration"))
+	ctx, span := tracer.Open(ctx)
 	defer span.Close()
 	if err := r.LogEvent(ctx, userID, &event); err != nil {
 		return fmt.Errorf("подтверждение регистрации: %w", err)
@@ -419,7 +445,7 @@ func (r *UserRepository) ConfirmRegistration(ctx context.Context, userID int64, 
 }
 
 func (r *UserRepository) FailRegistration(ctx context.Context, userID int64, event FailRegistrationEvent) error {
-	ctx, span := tracer.Open(ctx, tracer.Named("UserRepository::FailRegistration"))
+	ctx, span := tracer.Open(ctx)
 	defer span.Close()
 	if err := r.LogEvent(ctx, userID, &event); err != nil {
 		return fmt.Errorf("проваленная регистрация: %w", err)
@@ -428,7 +454,7 @@ func (r *UserRepository) FailRegistration(ctx context.Context, userID int64, eve
 }
 
 func (r *UserRepository) RegisterCarLicensePlate(ctx context.Context, userID int64, event RegisterCarLicensePlateEvent) error {
-	ctx, span := tracer.Open(ctx, tracer.Named("UserRepository::RegisterCarLicensePlate"))
+	ctx, span := tracer.Open(ctx)
 	defer span.Close()
 	if err := r.LogEvent(ctx, userID, &event); err != nil {
 		return fmt.Errorf("провалена регистрация авто: %w", err)

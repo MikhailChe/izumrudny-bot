@@ -176,7 +176,12 @@ func (b *TBot) Init(
 			defer span.Close()
 			var rows []telebot.Row
 			if c.Chat().Type == telebot.ChatPrivate {
-				rows = append(rows, markup.Row(*registrationService.EntryPoint()))
+				user := repository.CurrentUserFromContext(ctx)
+				if user != nil && user.HavePendingRegistration() {
+					rows = append(rows, markup.Row(markup.ContinueRegisterBtn))
+				} else {
+					rows = append(rows, markup.Row(markup.RegisterBtn))
+				}
 			}
 			rows = append(rows, markup.Row(markup.HelpMainMenuBtn))
 			return c.EditOrSend(ctx, `Этот раздел только для резидентов изумрудного бора. И доступен только в личном общении с ботом.

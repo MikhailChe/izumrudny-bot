@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/mikhailche/telebot"
 	"mikhailche/botcomod/handlers/middleware"
+	"mikhailche/botcomod/handlers/middleware/ydbctx"
 	"mikhailche/botcomod/lib/tracer.v2"
 	"sync"
 
@@ -76,7 +77,7 @@ func newApp(ctx context.Context) *App {
 		repository.SelectTelegramChatsByUserID(ydbDriver),
 		[]telebot.MiddlewareFunc{
 			middleware.TracingMiddleware,
-			middleware.WithYdbTxInContext(ydbDriver, log.Named("ydbSessionMiddleware")),
+			ydbctx.WithYdbTxInContext(ydbDriver, log.Named("ydbSessionMiddleware")),
 			middleware.UpsertUsernameMiddleware(log.Named("upsertUsernameMiddleware"), userRepository, telegramChatUpserter, repository.UpsertTelegramChatToUserMapping(ydbDriver)),
 			middleware.AutoRespondCallback,
 			middleware.CurrentUserInContext(userRepository),
