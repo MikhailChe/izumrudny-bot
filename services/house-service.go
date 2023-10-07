@@ -2,16 +2,16 @@ package services
 
 import (
 	"context"
-	repositories "mikhailche/botcomod/repository"
+	"mikhailche/botcomod/repository"
 	"time"
 )
 
 type HouseService struct {
-	cache repositories.THouses
+	cache repository.THouses
 }
 
 type houseRepo interface {
-	GetHouses(ctx context.Context) (repositories.THouses, error)
+	GetHouses(ctx context.Context) (repository.THouses, error)
 }
 
 func NewHouseService(ctx context.Context, repo houseRepo) *HouseService {
@@ -30,6 +30,6 @@ func NewHouseService(ctx context.Context, repo houseRepo) *HouseService {
 	return &service
 }
 
-func (h *HouseService) Houses() repositories.THouses {
+func (h *HouseService) Houses() repository.THouses {
 	return h.cache
 }

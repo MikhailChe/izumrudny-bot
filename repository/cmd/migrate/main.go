@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"mikhailche/botcomod/logger"
-	repositories "mikhailche/botcomod/repository"
+	"mikhailche/botcomod/repository"
 	"mikhailche/botcomod/repository/ydb"
 
 	"go.uber.org/zap"
@@ -19,7 +19,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	houses := repositories.HouseRepository{DB: ydbd}
+	houses := repository.HouseRepository{DB: ydbd}
 	hh, err := houses.GetHouses(ctx)
 	if err != nil {
 		panic(err)

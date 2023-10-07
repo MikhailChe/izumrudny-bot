@@ -2,8 +2,9 @@ package markup
 
 import (
 	"context"
-	"github.com/mikhailche/telebot"
 	"mikhailche/botcomod/lib/tracer.v2"
+
+	"github.com/mikhailche/telebot"
 )
 
 var (
@@ -17,6 +18,7 @@ var (
 	IntercomCodeBtn    = Data("🔑 Код домофона", "intercom-code")
 	VideoCamerasBtn    = Data("📽 Камеры видеонаблюдения", "internal-video-cameras")
 	PMWithResidentsBtn = Data("💬 Чат с другими резидентами", "resident-pm")
+	PMWithCarOwnersBtn = Data("💬🚗🅿️ Чат с владельцами авто", "carowner-pm")
 
 	RegisterBtn         = Data("📒 Начать регистрацию", "registration")
 	ContinueRegisterBtn = Data("📒 Продолжить регистрацию", "registration")
@@ -25,7 +27,7 @@ var (
 )
 
 func HelpMenuMarkup(ctx context.Context) *telebot.ReplyMarkup {
-	ctx, span := tracer.Open(ctx, tracer.Named("helpMenuMarkup"))
+	_, span := tracer.Open(ctx, tracer.Named("helpMenuMarkup"))
 	defer span.Close()
 	return InlineMarkup(
 		Row(DistrictChatsBtn),
@@ -36,7 +38,7 @@ func HelpMenuMarkup(ctx context.Context) *telebot.ReplyMarkup {
 }
 
 func DynamicHelpMenuMarkup(ctx context.Context) *telebot.ReplyMarkup {
-	ctx, span := tracer.Open(ctx, tracer.Named("DynamicHelpMenuMarkup"))
+	_, span := tracer.Open(ctx, tracer.Named("DynamicHelpMenuMarkup"))
 	defer span.Close()
 	var rows []telebot.Row
 	rows = append(

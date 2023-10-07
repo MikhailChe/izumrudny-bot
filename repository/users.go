@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"mikhailche/botcomod/handlers/middleware/ydbctx"
 	"mikhailche/botcomod/lib/tracer.v2"
 	"time"
 
@@ -328,37 +329,103 @@ func (r *UserRepository) GetUser(ctx context.Context, userQueryExecutor getUserO
 	return user, nil
 }
 
+func (r *UserRepository) smartExecute(ctx context.Context, fn func(ctx context.Context, s table.Session) error) error {
+	if sess := ydbctx.YdbSessionFromContext(ctx); sess != nil {
+		return fn(ctx, sess)
+	}
+	return r.DB.Table().Do(ctx, fn, table.WithIdempotent())
+}
+
+func (r *UserRepository) GetAllUsers(ctx context.Context) ([]*User, error) {
+	ctx, span := tracer.Open(ctx)
+	defer span.Close()
+	var users []*User
+	var events []*UserEventRecord
+	executeSelectAllUsers := func(ctx context.Context, s table.Session) error {
+		ctx, span := tracer.Open(ctx, tracer.Named("UserRepository::GetAllUsers::executeSelectAllUsers"))
+		defer span.Close()
+		var err error
+		query := `SELECT * FROM user ORDER BY id;
+		SELECT * FROM user_event ORDER BY user, timestamp, id;`
+		_, res, err := s.Execute(ctx, table.DefaultTxControl(), query, table.NewQueryParameters())
+		if err != nil {
+			return fmt.Errorf("SELECT * FROM user: %w", err)
+		}
+		defer res.Close()
+		res.NextResultSet(ctx)
+		for res.NextRow() {
+			var user *User = new(User)
+			if err := user.Scan(ctx, res); err != nil {
+				return fmt.Errorf("скан user: %w", err)
+			}
+			users = append(users, user)
+		}
+		res.NextResultSet(ctx)
+		for res.NextRow() {
+			var userEvent *UserEventRecord = new(UserEventRecord)
+			if err := userEvent.Scan(ctx, res); err != nil {
+				return fmt.Errorf("скан userevent: %w", err)
+			}
+			events = append(events, userEvent)
+		}
+		return res.Err()
+	}
+	if err := r.smartExecute(ctx, executeSelectAllUsers); err != nil {
+		return nil, err
+	}
+
+	var i, j int
+	for i < len(users) && j < len(events) {
+		u := users[i]
+		e := events[j]
+		if e.User < u.ID {
+			// TODO: WTF? events for deleted user?
+			j++
+			continue
+		}
+		if e.User > u.ID {
+			//
+			i++
+			continue
+		}
+		if e.User != u.ID {
+			return nil, fmt.Errorf("something wrong with this logic")
+		}
+		e.Event.Apply(ctx, u)
+		j++
+	}
+
+	return users, nil
+}
+
 var ErrNotFound = fmt.Errorf("not found")
+
+// FindByVehicleLicensePlate implements bot.UserByVehicleLicensePlateRepository.
+func (r *UserRepository) FindByVehicleLicensePlate(ctx context.Context, vehicleLicensePlate string) (*User, error) {
+	ctx, span := tracer.Open(ctx, tracer.Named("UserRepository::FindByVehicleLicensePlate"))
+	defer span.Close()
+	users, err := r.GetAllUsers(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, user := range users {
+		for _, car := range user.Cars {
+			if car.LicensePlate == vehicleLicensePlate {
+				return user, nil
+			}
+		}
+	}
+	return nil, ErrNotFound
+}
 
 func (r *UserRepository) FindByAppartment(ctx context.Context, house string, appartment string) (*User, error) {
 	ctx, span := tracer.Open(ctx, tracer.Named("UserRepository::FindByAppartment"))
 	defer span.Close()
-	var userIDs []int64
-	if err := r.DB.Table().Do(ctx, func(ctx context.Context, s table.Session) error {
-		query := "SELECT `id` FROM `user`;"
-		_, res, err := s.Execute(ctx, table.DefaultTxControl(), query, table.NewQueryParameters())
-		if err != nil {
-			return fmt.Errorf("select id from user: %w", err)
-		}
-		defer res.Close()
-		for res.NextResultSet(ctx) {
-			for res.NextRow() {
-				var userID int64
-				if err := res.ScanWithDefaults(&userID); err != nil {
-					return fmt.Errorf("скан userID: %w", err)
-				}
-				userIDs = append(userIDs, userID)
-			}
-		}
-		return res.Err()
-	}, table.WithIdempotent()); err != nil {
+	users, err := r.GetAllUsers(ctx)
+	if err != nil {
 		return nil, err
 	}
-	for _, userID := range userIDs {
-		user, err := r.GetUser(ctx, r.ByID(userID))
-		if err != nil {
-			return nil, err
-		}
+	for _, user := range users {
 		for _, appart := range user.Apartments {
 			if appart.HouseNumber == house && appart.ApartmentNumber == appartment {
 				return user, nil

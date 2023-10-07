@@ -200,30 +200,18 @@ func (b *TBot) Init(
 	carsService.Register(bot)
 
 	getResidentsMarkup := func(ctx context.Context, c telebot.Context) *telebot.ReplyMarkup {
-		ctx, span := tracer.Open(ctx, tracer.Named("getResidentsMarkup"))
+		_, span := tracer.Open(ctx, tracer.Named("getResidentsMarkup"))
 		defer span.Close()
-		user, err := userRepository.GetUser(ctx, userRepository.ByID(c.Sender().ID))
-		if err != nil || user.Registration == nil {
-			var rows []telebot.Row
-			rows = append(rows,
-				// residentsMenuMarkup.Row(intercomCodeBtn),
-				markup.Row(markup.VideoCamerasBtn),
-				markup.Row(markup.PMWithResidentsBtn),
-				markup.Row(markup.HelpMainMenuBtn),
-			)
-			if userRepository.IsAdmin(ctx, c.Sender().ID) {
-				rows = append(rows, markup.Row(carsService.EntryPoint()))
-			}
-			return markup.InlineMarkup(rows...)
-		}
-
-		return markup.InlineMarkup(
+		var rows []telebot.Row
+		rows = append(rows,
 			// residentsMenuMarkup.Row(intercomCodeBtn),
 			markup.Row(markup.VideoCamerasBtn),
 			markup.Row(markup.PMWithResidentsBtn),
-			markup.Row(markup.ContinueRegisterBtn),
+			markup.Row(markup.PMWithCarOwnersBtn),
+			markup.Row(carsService.EntryPoint()),
 			markup.Row(markup.HelpMainMenuBtn),
 		)
+		return markup.InlineMarkup(rows...)
 	}
 
 	registrationCheckApproveCode := func(c telebot.Context, ctx context.Context, user *repository.User, approveCode string) error {
@@ -358,15 +346,20 @@ func (b *TBot) Init(
 	if err != nil {
 		log.Fatal("Ошибка инициализации чатов", zap.Error(err))
 	}
-
 	residentsChatter.RegisterBotsHandlers(ctx, authGroup)
-	pmWithResidentsHandler := func(ctx context.Context, c telebot.Context) error {
-		ctx, span := tracer.Open(ctx, tracer.Named("pmWithResidentsHandler"))
-		defer span.Close()
-		return residentsChatter.HandleChatWithResident(ctx, c)
-	}
+	pmWithResidentsHandler := residentsChatter.HandleChatWithResident
 	authGroup.Handle("/connect", pmWithResidentsHandler)
 	authGroup.Handle(&markup.PMWithResidentsBtn, pmWithResidentsHandler)
+
+	carownerChatter, err := NewCarOwnerChatter(markup.BackToResidentsBtn, userRepository)
+	if err != nil {
+		log.Fatal("Ошибка инициализации чатов", zap.Error(err))
+	}
+	carownerChatter.RegisterBotsHandlers(ctx, authGroup)
+	authGroup.Handle("/beep", func(ctx context.Context, c telebot.Context) error {
+		return c.EditOrReply(ctx, "Пробуем связаться с владельцем авто", markup.InlineMarkup(markup.Row(markup.PMWithCarOwnersBtn)))
+	})
+	authGroup.Handle(&markup.PMWithCarOwnersBtn, carownerChatter.HandleInputCarPlate)
 
 	forwardDeveloperHandler := devbotsender.ForwardToDeveloper(log.Named("forwardToDeveloper"))
 
@@ -386,7 +379,7 @@ func (b *TBot) Init(
 		if err != nil {
 			return fmt.Errorf("telebot.OnMedia: %w", err)
 		}
-		if user.Registration != nil {
+		if user.Registration != nil && c.Chat().Type == telebot.ChatPrivate {
 			return registrationService.HandleMediaCreated(ctx, user, c)
 		}
 		return forwardDeveloperHandler(ctx, c)

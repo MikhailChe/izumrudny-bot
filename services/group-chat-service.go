@@ -2,17 +2,17 @@ package services
 
 import (
 	"context"
-	repositories "mikhailche/botcomod/repository"
+	"mikhailche/botcomod/repository"
 	"time"
 )
 
 type GroupChatService struct {
-	cache repositories.TGroupChats
+	cache repository.TGroupChats
 	repo  getGroupChatRepo
 }
 
 type getGroupChatRepo interface {
-	GetGroupChats(ctx context.Context) (repositories.TGroupChats, error)
+	GetGroupChats(ctx context.Context) (repository.TGroupChats, error)
 }
 
 func NewGroupChatService(ctx context.Context, repo getGroupChatRepo) *GroupChatService {
@@ -33,7 +33,7 @@ func NewGroupChatService(ctx context.Context, repo getGroupChatRepo) *GroupChatS
 	return &service
 }
 
-func (h *GroupChatService) GroupChats() repositories.TGroupChats {
+func (h *GroupChatService) GroupChats() repository.TGroupChats {
 	return h.cache
 }
 

@@ -3,18 +3,18 @@ package bot
 import (
 	"context"
 	"fmt"
+	markup "mikhailche/botcomod/lib/bot-markup"
 	"mikhailche/botcomod/lib/tracer.v2"
 	"strconv"
 
-	markup "mikhailche/botcomod/lib/bot-markup"
-	repositories "mikhailche/botcomod/repository"
+	"mikhailche/botcomod/repository"
 
 	"github.com/mikhailche/telebot"
 )
 
 type ResidentsChatter struct {
 	users  residentsUserRepository
-	houses func() repositories.THouses
+	houses func() repository.THouses
 
 	upperMenu telebot.Btn
 
@@ -28,13 +28,12 @@ type ResidentsChatter struct {
 }
 
 type residentsUserRepository interface {
-	FindByAppartment(ctx context.Context, house string, appartment string) (*repositories.User, error)
+	FindByAppartment(ctx context.Context, house string, appartment string) (*repository.User, error)
 }
 
-func NewResidentsChatter(ctx context.Context, users residentsUserRepository, houses func() repositories.THouses, upperMenu telebot.Btn) (*ResidentsChatter, error) {
-	ctx, span := tracer.Open(ctx, tracer.Named("NewResidentsChatter"))
+func NewResidentsChatter(ctx context.Context, users residentsUserRepository, houses func() repository.THouses, upperMenu telebot.Btn) (*ResidentsChatter, error) {
+	_, span := tracer.Open(ctx, tracer.Named("NewResidentsChatter"))
 	defer span.Close()
-	markup := &telebot.ReplyMarkup{}
 	return &ResidentsChatter{
 		users:                 users,
 		houses:                houses,
@@ -54,7 +53,7 @@ type HandleRegistrator interface {
 }
 
 func (r *ResidentsChatter) RegisterBotsHandlers(ctx context.Context, bot HandleRegistrator) {
-	ctx, span := tracer.Open(ctx, tracer.Named("ResidentsChatter::RegisterBotsHandlers"))
+	_, span := tracer.Open(ctx, tracer.Named("ResidentsChatter::RegisterBotsHandlers"))
 	defer span.Close()
 	bot.Handle(&r.startChat, r.HandleChatWithResident)
 	bot.Handle(&r.houseIsChosen, r.HandleHouseIsChosen)
@@ -82,7 +81,7 @@ func (r *ResidentsChatter) HandleChatWithResident(ctx context.Context, c telebot
 		buttons = nil
 	}
 	rows = append(rows, markup.Row(r.upperMenu))
-	return c.EditOrReply(ctx, "Какие правила: можно связаться с зарегистрированным резидентом. Для этого нужно выбрать номер дома и "+
+	return c.EditOrReply(ctx, "Можно связаться с зарегистрированным резидентом. Для этого нужно выбрать номер дома и "+
 		"номер квартиры (машиноместа). Я отправлю запрос на контакт всем, кто проживает по этому адресу вместе с номером дома и квартирой, в которой проживаете вы. "+
 		"Если запрос будет подтверждён, то я отправлю обоим участникам контактные данные и вы сможете связаться друг с другом.\n\n"+
 		"Итак, с кем хотим связаться?\n"+
@@ -91,22 +90,21 @@ func (r *ResidentsChatter) HandleChatWithResident(ctx context.Context, c telebot
 	)
 }
 
-func (r *ResidentsChatter) houseFromContext(ctx context.Context, number string) repositories.THouse {
-	ctx, span := tracer.Open(ctx, tracer.Named("houseFromContext"))
+func (r *ResidentsChatter) houseFromContext(ctx context.Context, number string) repository.THouse {
+	_, span := tracer.Open(ctx, tracer.Named("houseFromContext"))
 	defer span.Close()
 	for _, house := range r.houses() {
 		if house.Number == number {
 			return house
 		}
 	}
-	return repositories.THouse{}
+	return repository.THouse{}
 }
 
 func (r *ResidentsChatter) HandleHouseIsChosen(ctx context.Context, c telebot.Context) error {
 	ctx, span := tracer.Open(ctx, tracer.Named("ResidentsChatter::ResidentsChatter"))
 	defer span.Close()
-	var house repositories.THouse = r.houseFromContext(ctx, c.Args()[0])
-	markup := &telebot.ReplyMarkup{}
+	var house repository.THouse = r.houseFromContext(ctx, c.Args()[0])
 	var rows []telebot.Row
 	{
 		var buttons []telebot.Btn
@@ -124,19 +122,17 @@ func (r *ResidentsChatter) HandleHouseIsChosen(ctx context.Context, c telebot.Co
 		}
 	}
 	rows = append(rows, markup.Row(r.upperMenu))
-	markup.Inline(rows...)
-	return c.EditOrReply(ctx, fmt.Sprintf("🏠 %s 🏠\nКакая квартира?", house.Number), markup)
+	return c.EditOrReply(ctx, fmt.Sprintf("🏠 %s 🏠\nКакая квартира?", house.Number), markup.InlineMarkup(rows...))
 }
 
 func (r *ResidentsChatter) HandleAppartmentRangeChosen(ctx context.Context, c telebot.Context) error {
 	ctx, span := tracer.Open(ctx, tracer.Named("ResidentsChatter::HandleAppartmentRangeChosen"))
 	defer span.Close()
-	var house repositories.THouse = r.houseFromContext(ctx, c.Args()[0])
+	var house repository.THouse = r.houseFromContext(ctx, c.Args()[0])
 	appartmentRangeStart, err := strconv.Atoi(c.Args()[1])
 	if err != nil {
 		return fmt.Errorf("парсинг диапазона квартир для чата резидентов [%v]: %w", c.Args()[1], err)
 	}
-	markup := &telebot.ReplyMarkup{}
 	var rows []telebot.Row
 	{
 		var buttons []telebot.Btn
@@ -153,44 +149,46 @@ func (r *ResidentsChatter) HandleAppartmentRangeChosen(ctx context.Context, c te
 		}
 	}
 	rows = append(rows, markup.Row(r.upperMenu))
-	markup.Inline(rows...)
-	return c.EditOrReply(ctx, fmt.Sprintf("🏠 %s 🏠\nКакая квартира?", house.Number), markup)
+
+	return c.EditOrReply(ctx, fmt.Sprintf("🏠 %s 🏠\nКакая квартира?", house.Number), markup.InlineMarkup(rows...))
 }
 
 func (r *ResidentsChatter) HandleAppartmentChosen(ctx context.Context, c telebot.Context) error {
 	ctx, span := tracer.Open(ctx, tracer.Named("ResidentsChatter::HandleAppartmentChosen"))
 	defer span.Close()
-	var house repositories.THouse = r.houseFromContext(ctx, c.Args()[0])
+	var house repository.THouse = r.houseFromContext(ctx, c.Args()[0])
 	appartment, err := strconv.Atoi(c.Args()[2])
 	if err != nil {
 		return fmt.Errorf("парсинг номера квартиры для чата с резидентами [%v]: %w", c.Args()[2], err)
 	}
-	markup := &telebot.ReplyMarkup{}
-	markup.Inline(
-		markup.Row(
-			markup.Data("❌ Неверно", r.startChat.Unique),
-			markup.Data("✅ Всё ок", r.chatRequestApproved.Unique, c.Args()...),
-		),
-		markup.Row(r.upperMenu),
-	)
-	return c.EditOrReply(ctx, fmt.Sprintf("Проверим, что всё правильно.\nДом 🏠 %s 🏠\nКвартира🚪 %d 🚪", house.Number, appartment), markup)
+
+	return c.EditOrReply(ctx, fmt.Sprintf("Проверим, что всё правильно.\nДом 🏠 %s 🏠\nКвартира🚪 %d 🚪", house.Number, appartment),
+		markup.InlineMarkup(
+			markup.Row(
+				markup.Data("❌ Неверно", r.startChat.Unique),
+				markup.Data("✅ Всё ок", r.chatRequestApproved.Unique, c.Args()...),
+			),
+			markup.Row(r.upperMenu),
+		))
 }
 
 func (r *ResidentsChatter) HandleChatRequestApproved(ctx context.Context, c telebot.Context) error {
 	ctx, span := tracer.Open(ctx, tracer.Named("ResidentsChatter::HandleChatRequestApproved"))
 	defer span.Close()
-	var house repositories.THouse = r.houseFromContext(ctx, c.Args()[0])
+	var house repository.THouse = r.houseFromContext(ctx, c.Args()[0])
 	appartment, err := strconv.Atoi(c.Args()[2])
 	if err != nil {
 		return fmt.Errorf("парсинг номера квартиры для чата с резидентами [%v]: %w", c.Args()[2], err)
 	}
 
 	user, err := r.users.FindByAppartment(ctx, house.Number, fmt.Sprint(appartment))
-	if err == repositories.ErrNotFound {
+	if err == repository.ErrNotFound {
 		return fmt.Errorf(
 			"не нашел пользователя проживающего в [%v %d]: %w; %v",
 			house.Number, appartment, err,
-			c.EditOrReply(ctx, "Я не нашел никого, зарегистрированного по этому адресу. Придется искать другим способом.", markup.InlineMarkup(markup.Row(r.upperMenu))),
+			c.EditOrReply(ctx, "Я не нашел никого, зарегистрированного по этому адресу. Придется искать другим способом.",
+				markup.InlineMarkup(markup.Row(r.upperMenu)),
+			),
 		)
 	}
 	if err != nil {
@@ -199,21 +197,17 @@ func (r *ResidentsChatter) HandleChatRequestApproved(ctx context.Context, c tele
 		)
 	}
 
-	sendMyContactMarkup := &telebot.ReplyMarkup{}
-	sendMyContactMarkup.Inline(
-		sendMyContactMarkup.Row(
-			sendMyContactMarkup.Data("❌ Нельзя", r.denyContact.Unique, fmt.Sprint(c.Sender().ID)),
-			sendMyContactMarkup.Data("✅ Отправить", r.allowContact.Unique, fmt.Sprint(c.Sender().ID)),
-		),
-		sendMyContactMarkup.Row(r.upperMenu),
-	)
-
 	if _, err := c.Bot().Send(ctx, &telebot.User{ID: user.ID},
 		fmt.Sprintf(
 			"С вами хочет связаться %s %s (@%s). Можно ли передать ему ваши контактные данные?",
 			c.Sender().FirstName, c.Sender().LastName, c.Sender().Username,
 		),
-		sendMyContactMarkup,
+		markup.InlineMarkup(
+			markup.Row(
+				markup.Data("❌ Нельзя", r.denyContact.Unique, fmt.Sprint(c.Sender().ID)),
+				markup.Data("✅ Отправить", r.allowContact.Unique, fmt.Sprint(c.Sender().ID)),
+			),
+		),
 	); err != nil {
 		return fmt.Errorf("не отправил запрос на контакт [%d]: %w", user.ID, err)
 	}
@@ -233,25 +227,21 @@ func (r *ResidentsChatter) HandleAllowContact(ctx context.Context, c telebot.Con
 			c.Args()[0], err,
 		)
 	}
-	enjoy := &telebot.ReplyMarkup{}
-	enjoy.Inline(
-		enjoy.Row(enjoy.URL("💬 Связаться", fmt.Sprintf("tg://user?id=%d", c.Sender().ID))),
-		enjoy.Row(r.upperMenu),
-	)
 	c.Bot().Send(ctx, &telebot.User{ID: int64(recepient)},
 		fmt.Sprintf(
 			"Пользователь %s %s (@%s) разрешил поделиться контактом. Общайтесь!",
 			c.Sender().FirstName, c.Sender().LastName, c.Sender().Username,
 		),
-		enjoy,
+		markup.InlineMarkup(
+			markup.Row(markup.URL("💬 Связаться", fmt.Sprintf("tg://user?id=%d", c.Sender().ID))),
+			markup.Row(r.upperMenu),
+		),
 	)
 
-	enjoyReceipent := &telebot.ReplyMarkup{}
-	enjoyReceipent.Inline(
-		enjoyReceipent.Row(enjoy.URL("💬 Связаться", fmt.Sprintf("tg://user?id=%d", recepient))),
-		enjoy.Row(r.upperMenu),
-	)
-	return c.EditOrReply(ctx, "Отправил ваши контакты.", enjoyReceipent)
+	return c.EditOrReply(ctx, "Отправил ваши контакты.", markup.InlineMarkup(
+		markup.Row(markup.URL("💬 Связаться", fmt.Sprintf("tg://user?id=%d", recepient))),
+		markup.Row(r.upperMenu),
+	))
 }
 
 func (r *ResidentsChatter) HandleDenyContact(ctx context.Context, c telebot.Context) error {
@@ -261,19 +251,16 @@ func (r *ResidentsChatter) HandleDenyContact(ctx context.Context, c telebot.Cont
 	if err != nil {
 		return fmt.Errorf("парсинг получателя для отказа в контакте: %w", err)
 	}
-	enjoy := &telebot.ReplyMarkup{}
-	enjoy.Inline(
-		enjoy.Row(r.upperMenu),
-	)
+
 	c.Bot().Send(ctx, &telebot.User{ID: int64(recepient)},
 		"Пользователь запретил делаться контактом. Придется сходить к нему пешком.",
-		enjoy,
+		markup.InlineMarkup(
+			markup.Row(r.upperMenu),
+		),
 	)
 
-	enjoyReceipent := &telebot.ReplyMarkup{}
-	enjoyReceipent.Inline(
-		enjoyReceipent.Row(enjoy.URL("💬 Связаться", fmt.Sprintf("tg://user?id=%d", recepient))),
-		enjoy.Row(r.upperMenu),
-	)
-	return c.EditOrReply(ctx, "Ну ладно, возможно там было что-то важное...", enjoyReceipent)
+	return c.EditOrReply(ctx, "Ну ладно, возможно там было что-то важное...", markup.InlineMarkup(
+		markup.Row(markup.URL("💬 Связаться", fmt.Sprintf("tg://user?id=%d", recepient))),
+		markup.Row(r.upperMenu),
+	))
 }

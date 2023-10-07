@@ -3,31 +3,32 @@ package bot
 import (
 	"context"
 	"fmt"
-	repositories "mikhailche/botcomod/repository"
+	"mikhailche/botcomod/lib/cars"
+	"mikhailche/botcomod/repository"
 
-	tele "github.com/mikhailche/telebot"
+	"github.com/mikhailche/telebot"
 )
 
 type carsHandler struct {
 	users carsUserRepository
 
-	upperMenu *tele.Btn
+	upperMenu *telebot.Btn
 
-	confirmPlateMenu *tele.Btn
+	confirmPlateMenu *telebot.Btn
 }
 
 type carsUserRepository interface {
-	RegisterCarLicensePlate(ctx context.Context, userID int64, event repositories.RegisterCarLicensePlateEvent) error
+	RegisterCarLicensePlate(ctx context.Context, userID int64, event repository.RegisterCarLicensePlateEvent) error
 }
 
-func NewCarsHandler(users carsUserRepository, upperMenu *tele.Btn) *carsHandler {
-	markup := &tele.ReplyMarkup{}
+func NewCarsHandler(users carsUserRepository, upperMenu *telebot.Btn) *carsHandler {
+	markup := &telebot.ReplyMarkup{}
 	confirmPlateBtn := markup.Data("✅ Готово", "confirmlicenseplate") // для хранения unique
 	return &carsHandler{users: users, upperMenu: upperMenu, confirmPlateMenu: &confirmPlateBtn}
 }
 
-func (ch *carsHandler) EntryPoint() tele.Btn {
-	markup := &tele.ReplyMarkup{}
+func (ch *carsHandler) EntryPoint() telebot.Btn {
+	markup := &telebot.ReplyMarkup{}
 	return markup.Data("Добавить автомобиль", "add-automoibile")
 }
 
@@ -37,56 +38,20 @@ func (ch *carsHandler) Register(bot HandleRegistrator) {
 	bot.Handle(ch.confirmPlateMenu, ch.ConfirmPlateHandler)
 }
 
-func needLetter(plate string) bool {
-	if len(plate) == 0 || len(plate) >= 4 && len(plate) < 6 {
-		return true
-	}
-	return false
-}
-func needDigit(plate string) bool {
-	if len(plate) > 0 && len(plate) < 4 || len(plate) >= 6 {
-		return true
-	}
-	return false
-}
-
-func licensePlateHints(plate string) string {
-	switch len(plate) {
-	case 0:
-		return "Начнём с первого символа."
-	case 1:
-		return "Теперь 3 цифры."
-	case 2:
-		return "Ещё две цифры."
-	case 3:
-		return "И ещё одна цифра"
-	case 4:
-		return "Две последние буквы"
-	case 5:
-		return "И ещё одна"
-	case 6:
-		return "Теперь номер региона. 96?"
-	case 7:
-		if plate[6] == '7' {
-			return "Москва? Питер?"
-		}
-	}
-	return ""
-}
-
-func (ch *carsHandler) HandleAddCar(ctx context.Context, c tele.Context) error {
+func (ch *carsHandler) HandleAddCar(ctx context.Context, c telebot.Context) error {
 	var currentPlate = c.Args()[0]
-	var markup = &tele.ReplyMarkup{}
-	var rows []tele.Row
-	if needLetter(currentPlate) {
-		var letterButtons []tele.Btn
-		for _, letter := range "ABCEHKMOPTXY" {
+	var markup = &telebot.ReplyMarkup{}
+	var rows []telebot.Row
+	nextCt := cars.NextCharacterType(currentPlate)
+	if nextCt.IsLatinoCyrillic() {
+		var letterButtons []telebot.Btn
+		for _, letter := range cars.ABCEHKMOPTXY {
 			letterButtons = append(letterButtons, markup.Data(string(letter), c.Callback().Unique, currentPlate+string(letter)))
 		}
 		rows = append(rows, markup.Split(4, letterButtons)...)
 	}
-	if needDigit(currentPlate) {
-		var digitButtons []tele.Btn
+	if nextCt.IsNumber() {
+		var digitButtons []telebot.Btn
 		for _, letter := range "7894561230" {
 			digitButtons = append(digitButtons, markup.Data(string(letter), c.Callback().Unique, currentPlate+string(letter)))
 		}
@@ -109,21 +74,21 @@ func (ch *carsHandler) HandleAddCar(ctx context.Context, c tele.Context) error {
 	}
 	rows = append(rows, markup.Row(*ch.upperMenu))
 	markup.Inline(rows...)
-	return c.EditOrReply(ctx, fmt.Sprintf("Введите номер своего автомобиля: %s\n%s", c.Args(), licensePlateHints(currentPlate)), markup)
+	return c.EditOrReply(ctx, fmt.Sprintf("Введите номер своего автомобиля: %s\n%s", c.Args(), cars.LicensePlateHints(currentPlate)), markup)
 }
 
-func (ch *carsHandler) ConfirmPlateHandler(ctx context.Context, c tele.Context) error {
+func (ch *carsHandler) ConfirmPlateHandler(ctx context.Context, c telebot.Context) error {
 	if err := ch.users.RegisterCarLicensePlate(
 		ctx,
 		c.Sender().ID,
-		repositories.RegisterCarLicensePlateEvent{UpdateID: int64(c.Update().ID), LicensePlate: c.Args()[0]},
+		repository.RegisterCarLicensePlateEvent{UpdateID: int64(c.Update().ID), LicensePlate: c.Args()[0]},
 	); err != nil {
 		return fmt.Errorf("ошибка регистрации авто: %v: %w",
 			c.Reply("Ошибка регистрации автомобиля. Попробуйте позже"),
 			err,
 		)
 	}
-	markup := &tele.ReplyMarkup{}
+	markup := &telebot.ReplyMarkup{}
 	markup.Inline(markup.Row(*ch.upperMenu))
 	return c.EditOrReply(ctx, `Добавили ваш номер автомобиля в базу. Теперь с вами смогут связаться по нему.`)
 }

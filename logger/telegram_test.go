@@ -4,22 +4,23 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	tele "github.com/mikhailche/telebot"
+	"strings"
+	"testing"
+
+	"github.com/mikhailche/telebot"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"strings"
-	"testing"
 )
 
 type mockBot struct {
 	mock.Mock
 }
 
-func (m *mockBot) Send(_ context.Context, to tele.Recipient, what interface{}, opts ...interface{}) (*tele.Message, error) {
+func (m *mockBot) Send(_ context.Context, to telebot.Recipient, what interface{}, opts ...interface{}) (*telebot.Message, error) {
 	argsToReturn := m.Called(to, what, opts)
-	msg, ok := argsToReturn.Get(0).(*tele.Message)
+	msg, ok := argsToReturn.Get(0).(*telebot.Message)
 	if !ok {
 		msg = nil
 	}
@@ -31,7 +32,7 @@ func TestTelegramZapCore(t *testing.T) {
 	bot := &mockBot{}
 	bot.Test(t)
 	var sentString string
-	bot.On("Send", tele.ChatID(666), mock.Anything, []any{tele.ModeHTML}).
+	bot.On("Send", telebot.ChatID(666), mock.Anything, []any{telebot.ModeHTML}).
 		Return(nil, nil).
 		Run(func(args mock.Arguments) { sentString = args.String(1) }).
 		Once()
@@ -50,7 +51,7 @@ func TestTelegramZapCoreWithFields(t *testing.T) {
 	bot := &mockBot{}
 	bot.Test(t)
 	var sentString string
-	bot.On("Send", tele.ChatID(666), mock.Anything, []any{tele.ModeHTML}).
+	bot.On("Send", telebot.ChatID(666), mock.Anything, []any{telebot.ModeHTML}).
 		Return(nil, nil).
 		Run(func(args mock.Arguments) { sentString = args.String(1) }).
 		Once()
@@ -70,7 +71,7 @@ func TestTelegramZapCoreWithFields(t *testing.T) {
 func TestTelegramZapCoreBotFails(t *testing.T) {
 	bot := &mockBot{}
 	bot.Test(t)
-	bot.On("Send", tele.ChatID(666), mock.Anything, []any{tele.ModeHTML}).
+	bot.On("Send", telebot.ChatID(666), mock.Anything, []any{telebot.ModeHTML}).
 		Return(nil, errors.New("some sort of telegram error")).
 		Once()
 
