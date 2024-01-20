@@ -266,7 +266,7 @@ SELECT * FROM user_event WHERE user = $id ORDER BY user, timestamp, id;`,
 	}
 	defer res.Close()
 	if !res.NextResultSet(ctx) {
-		return fmt.Errorf("не нашел result set для событий пользователя; невалидный запрос?")
+		return fmt.Errorf("не нашел result set для событий пользователя; возможно невалидный запрос")
 	}
 	for res.NextRow() {
 		var event UserEventRecord
@@ -354,7 +354,7 @@ func (r *UserRepository) GetAllUsers(ctx context.Context) ([]*User, error) {
 		defer res.Close()
 		res.NextResultSet(ctx)
 		for res.NextRow() {
-			var user *User = new(User)
+			var user = new(User)
 			if err := user.Scan(ctx, res); err != nil {
 				return fmt.Errorf("скан user: %w", err)
 			}
@@ -362,7 +362,7 @@ func (r *UserRepository) GetAllUsers(ctx context.Context) ([]*User, error) {
 		}
 		res.NextResultSet(ctx)
 		for res.NextRow() {
-			var userEvent *UserEventRecord = new(UserEventRecord)
+			var userEvent = new(UserEventRecord)
 			if err := userEvent.Scan(ctx, res); err != nil {
 				return fmt.Errorf("скан userevent: %w", err)
 			}

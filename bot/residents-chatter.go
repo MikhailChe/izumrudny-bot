@@ -2,6 +2,7 @@ package bot
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	markup "mikhailche/botcomod/lib/bot-markup"
 	"mikhailche/botcomod/lib/tracer.v2"
@@ -104,7 +105,7 @@ func (r *ResidentsChatter) houseFromContext(ctx context.Context, number string) 
 func (r *ResidentsChatter) HandleHouseIsChosen(ctx context.Context, c telebot.Context) error {
 	ctx, span := tracer.Open(ctx, tracer.Named("ResidentsChatter::ResidentsChatter"))
 	defer span.Close()
-	var house repository.THouse = r.houseFromContext(ctx, c.Args()[0])
+	var house = r.houseFromContext(ctx, c.Args()[0])
 	var rows []telebot.Row
 	{
 		var buttons []telebot.Btn
@@ -128,7 +129,7 @@ func (r *ResidentsChatter) HandleHouseIsChosen(ctx context.Context, c telebot.Co
 func (r *ResidentsChatter) HandleAppartmentRangeChosen(ctx context.Context, c telebot.Context) error {
 	ctx, span := tracer.Open(ctx, tracer.Named("ResidentsChatter::HandleAppartmentRangeChosen"))
 	defer span.Close()
-	var house repository.THouse = r.houseFromContext(ctx, c.Args()[0])
+	var house = r.houseFromContext(ctx, c.Args()[0])
 	appartmentRangeStart, err := strconv.Atoi(c.Args()[1])
 	if err != nil {
 		return fmt.Errorf("парсинг диапазона квартир для чата резидентов [%v]: %w", c.Args()[1], err)
@@ -156,7 +157,7 @@ func (r *ResidentsChatter) HandleAppartmentRangeChosen(ctx context.Context, c te
 func (r *ResidentsChatter) HandleAppartmentChosen(ctx context.Context, c telebot.Context) error {
 	ctx, span := tracer.Open(ctx, tracer.Named("ResidentsChatter::HandleAppartmentChosen"))
 	defer span.Close()
-	var house repository.THouse = r.houseFromContext(ctx, c.Args()[0])
+	var house = r.houseFromContext(ctx, c.Args()[0])
 	appartment, err := strconv.Atoi(c.Args()[2])
 	if err != nil {
 		return fmt.Errorf("парсинг номера квартиры для чата с резидентами [%v]: %w", c.Args()[2], err)
@@ -175,14 +176,14 @@ func (r *ResidentsChatter) HandleAppartmentChosen(ctx context.Context, c telebot
 func (r *ResidentsChatter) HandleChatRequestApproved(ctx context.Context, c telebot.Context) error {
 	ctx, span := tracer.Open(ctx, tracer.Named("ResidentsChatter::HandleChatRequestApproved"))
 	defer span.Close()
-	var house repository.THouse = r.houseFromContext(ctx, c.Args()[0])
+	var house = r.houseFromContext(ctx, c.Args()[0])
 	appartment, err := strconv.Atoi(c.Args()[2])
 	if err != nil {
 		return fmt.Errorf("парсинг номера квартиры для чата с резидентами [%v]: %w", c.Args()[2], err)
 	}
 
 	user, err := r.users.FindByAppartment(ctx, house.Number, fmt.Sprint(appartment))
-	if err == repository.ErrNotFound {
+	if errors.Is(err, repository.ErrNotFound) {
 		return fmt.Errorf(
 			"не нашел пользователя проживающего в [%v %d]: %w; %v",
 			house.Number, appartment, err,

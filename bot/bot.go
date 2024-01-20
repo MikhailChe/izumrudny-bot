@@ -106,7 +106,7 @@ func (b *TBot) Init(
 	log.Info("Adding replay update controller")
 	handlers.ReplayUpdateController(bot.Group(), adminAuthMiddleware, updateLogRepository, bot)
 
-	handlers.StaticDataController(bot.Group(), groupChats)
+	handlers.StaticDataController(bot.Group())
 	log.Info("Adding phones controller")
 	handlers.PhonesController(bot.Group(), &markup.HelpMainMenuBtn, &markup.HelpfulPhonesBtn)
 
@@ -163,7 +163,7 @@ func (b *TBot) Init(
 	bot.Handle(&markup.DistrictChatsBtn, chatsHandler)
 	bot.Handle("/chats", chatsHandler)
 
-	registrationService := newTelegramRegistrator(log, userRepository, houses, markup.HelpMainMenuBtn)
+	registrationService := newTelegramRegistrar(log, userRepository, houses, markup.HelpMainMenuBtn)
 	registrationService.Register(bot)
 
 	var authMiddleware telebot.MiddlewareFunc = func(next telebot.HandlerFunc) telebot.HandlerFunc {
@@ -375,7 +375,7 @@ func (b *TBot) Init(
 	bot.Handle(telebot.OnMedia, func(ctx context.Context, c telebot.Context) error {
 		ctx, cancel := context.WithTimeout(ctx, time.Second)
 		defer cancel()
-		user, err := userRepository.GetUser(ctx, userRepository.ByID(int64(c.Sender().ID)))
+		user, err := userRepository.GetUser(ctx, userRepository.ByID(c.Sender().ID))
 		if err != nil {
 			return fmt.Errorf("telebot.OnMedia: %w", err)
 		}

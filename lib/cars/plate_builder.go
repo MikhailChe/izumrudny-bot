@@ -98,7 +98,7 @@ func possibleLicensePlateTypes(ctt []characterType) []licensePlateType {
 			}
 		}
 	}
-	var out = []licensePlateType{}
+	var out []licensePlateType
 	for lpt := range possibleTypes {
 		out = append(out, lpt)
 	}

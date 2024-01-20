@@ -29,7 +29,10 @@ func ReplayUpdateController(mux botMux, adminAuth telebot.MiddlewareFunc, getter
 		if err != nil {
 			return c.EditOrReply(ctx, fmt.Sprintf("Не удалось получить обновление из базы: %v", err))
 		}
-		processor.ProcessUpdateCtx(ctx, *update)
+		err = processor.ProcessUpdateCtx(ctx, *update)
+		if err != nil {
+			return c.EditOrReply(ctx, fmt.Sprintf("Ошибка повторной обработки update: %v", err))
+		}
 		return c.EditOrReply(ctx, "Наверное, всё удалось, но я точно не знаю")
 	}, adminAuth)
 }

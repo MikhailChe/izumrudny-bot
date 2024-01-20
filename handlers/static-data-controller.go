@@ -2,14 +2,12 @@ package handlers
 
 import (
 	"context"
+	"github.com/mikhailche/telebot"
 	markup "mikhailche/botcomod/lib/bot-markup"
 	"mikhailche/botcomod/lib/tracer.v2"
-	"mikhailche/botcomod/services"
-
-	"github.com/mikhailche/telebot"
 )
 
-func StaticDataController(mux botMux, groupChats *services.GroupChatService) {
+func StaticDataController(mux botMux) {
 	helpHandler := func(ctx context.Context, c telebot.Context) error {
 		ctx, span := tracer.Open(ctx, tracer.Named("helpHandler"))
 		defer span.Close()

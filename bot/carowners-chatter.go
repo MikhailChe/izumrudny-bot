@@ -95,10 +95,10 @@ func (r *CarOwnerChatter) HandleInputCarPlate(ctx context.Context, c telebot.Con
 func (r *CarOwnerChatter) HandleChatRequestApproved(ctx context.Context, c telebot.Context) error {
 	ctx, span := tracer.Open(ctx, tracer.Named("ResidentsChatter::HandleChatRequestApproved"))
 	defer span.Close()
-	var vehicleLicensePlate string = c.Args()[0]
+	var vehicleLicensePlate = c.Args()[0]
 
 	user, err := r.users.FindByVehicleLicensePlate(ctx, vehicleLicensePlate)
-	if err == repository.ErrNotFound {
+	if errors.Is(err, repository.ErrNotFound) {
 		return fmt.Errorf(
 			"не нашел владельца [%v]: %w; %v",
 			vehicleLicensePlate, err,

@@ -26,16 +26,16 @@ type telegramRegistrator struct {
 
 const registrationChatID = -1001860029647
 
-func newTelegramRegistrator(log *zap.Logger, userRepository *repository.UserRepository, houses func() repository.THouses, backBtn telebot.Btn) *telegramRegistrator {
-	markup := &telebot.ReplyMarkup{}
+func newTelegramRegistrar(log *zap.Logger, userRepository *repository.UserRepository, houses func() repository.THouses, backBtn telebot.Btn) *telegramRegistrator {
+	replyMarkup := &telebot.ReplyMarkup{}
 	return &telegramRegistrator{
 		backBtn:         backBtn,
 		log:             log,
 		userRepository:  userRepository,
 		houses:          houses,
-		adminApprove:    markup.Data("✅ Да, кажется всё совпадает", "admin-approve-registration"),
-		adminDisapprove: markup.Data("❌ Херня какая-то", "admin-disapprove-registration"),
-		adminFail:       markup.Data("🔐 В топку", "admin-fail-registration"),
+		adminApprove:    replyMarkup.Data("✅ Да, кажется всё совпадает", "admin-approve-registration"),
+		adminDisapprove: replyMarkup.Data("❌ Херня какая-то", "admin-disapprove-registration"),
+		adminFail:       replyMarkup.Data("🔐 В топку", "admin-fail-registration"),
 	}
 }
 
@@ -93,14 +93,14 @@ func (r *telegramRegistrator) HandleMediaCreated(ctx context.Context, user *repo
 	if c.Message().Photo == nil {
 		return c.EditOrReply(ctx, "Для регистрации нужно отправить фото вашей квитнации за квартиру. Так мы сможем убидеться, что вы являетесь резидентом района.")
 	}
-	c.Reply("Спасибо. Мы проверим и сообщим о результате.")
-	markup := &telebot.ReplyMarkup{}
-	markup.Inline(markup.Row(
-		markup.Data(r.adminApprove.Text, r.adminApprove.Unique, fmt.Sprint(c.Sender().ID)),
-		markup.Data(r.adminDisapprove.Text, r.adminDisapprove.Unique, fmt.Sprint(c.Sender().ID)),
-		markup.Data(r.adminFail.Text, r.adminFail.Unique, fmt.Sprint(c.Sender().ID)),
+	_ = c.Reply("Спасибо. Мы проверим и сообщим о результате.")
+	replyMarkup := &telebot.ReplyMarkup{}
+	replyMarkup.Inline(replyMarkup.Row(
+		replyMarkup.Data(r.adminApprove.Text, r.adminApprove.Unique, fmt.Sprint(c.Sender().ID)),
+		replyMarkup.Data(r.adminDisapprove.Text, r.adminDisapprove.Unique, fmt.Sprint(c.Sender().ID)),
+		replyMarkup.Data(r.adminFail.Text, r.adminFail.Unique, fmt.Sprint(c.Sender().ID)),
 	))
-	if err := c.ForwardTo(&telebot.Chat{ID: registrationChatID}, markup); err != nil {
+	if err := c.ForwardTo(&telebot.Chat{ID: registrationChatID}, replyMarkup); err != nil {
 		return fmt.Errorf("HandleMediaCreated: %w", err)
 	}
 	return sendToRegistrationGroup(ctx, c, r.log,
@@ -110,7 +110,7 @@ func (r *telegramRegistrator) HandleMediaCreated(ctx context.Context, user *repo
 		[]any{
 			c.Sender().Username, c.Sender().FirstName, c.Sender().LastName,
 			user.Registration.Events.Start.HouseNumber, user.Registration.Events.Start.Apartment},
-		markup)
+		replyMarkup)
 }
 
 func (r *telegramRegistrator) HandleStartRegistration(ctx context.Context, c telebot.Context) error {
@@ -153,13 +153,13 @@ func (r *telegramRegistrator) HandleStartRegistration(ctx context.Context, c tel
 		chooseAppartmentRangeMenu := &telebot.ReplyMarkup{}
 		var rows []telebot.Row
 		for i := house.Rooms.Min; i <= house.Rooms.Max; i += 64 {
-			range_min := i
-			range_max := i + 63
-			if range_max > house.Rooms.Max {
-				range_max = house.Rooms.Max
+			rangeMin := i
+			rangeMax := i + 63
+			if rangeMax > house.Rooms.Max {
+				rangeMax = house.Rooms.Max
 			}
-			rangeFmt := fmt.Sprintf("%d - %d", range_min, range_max)
-			rows = append(rows, chooseAppartmentRangeMenu.Row(chooseAppartmentRangeMenu.Data(rangeFmt, r.EntryPoint().Unique, house.Number, fmt.Sprint(range_min))))
+			rangeFmt := fmt.Sprintf("%d - %d", rangeMin, rangeMax)
+			rows = append(rows, chooseAppartmentRangeMenu.Row(chooseAppartmentRangeMenu.Data(rangeFmt, r.EntryPoint().Unique, house.Number, fmt.Sprint(rangeMin))))
 		}
 		rows = append(rows, chooseAppartmentRangeMenu.Row(r.backBtn))
 		chooseAppartmentRangeMenu.Inline(rows...)
@@ -229,9 +229,9 @@ func (r *telegramRegistrator) HandleStartRegistration(ctx context.Context, c tel
 		return fmt.Errorf("старт регистрации: %w", err)
 	}
 
-	markup := &telebot.ReplyMarkup{}
-	markup.Inline(markup.Row(r.backBtn))
-	if err := c.EditOrReply(ctx, `Для завершение регистрации отправьте фотографию вашей квитанции за квартиру. Так мы сможем убедиться, что вы проживаете в квартире и являетесь резидентом района.`, markup); err != nil {
+	replyMarkup := &telebot.ReplyMarkup{}
+	replyMarkup.Inline(replyMarkup.Row(r.backBtn))
+	if err := c.EditOrReply(ctx, `Для завершение регистрации отправьте фотографию вашей квитанции за квартиру. Так мы сможем убедиться, что вы проживаете в квартире и являетесь резидентом района.`, replyMarkup); err != nil {
 		return fmt.Errorf("отправка сообщения регистрации: %w", err)
 	}
 	return sendToRegistrationGroup(ctx, c, r.log, "Новая регистрация. Дом %s квартира %d. Код регистрации: %s", []any{houseNumber, appartmentNumber, code})

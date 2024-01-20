@@ -72,6 +72,7 @@ func withRetry(ctx context.Context, f func(context.Context) error, retryCount tR
 			return nil
 		}
 		allErrors = append(allErrors, err)
+		time.Sleep(retryDelay)
 	}
 	return errors.Join(allErrors...)
 }
