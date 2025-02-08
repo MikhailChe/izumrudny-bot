@@ -208,7 +208,7 @@ func (r *UserRepository) postGetUserOptionToUserScanner(ctx context.Context, s t
 		return nil, fmt.Errorf("не нашел result set для пользователя")
 	}
 	if !res.NextRow() {
-		return nil, fmt.Errorf("пользователь не найден")
+		return nil, fmt.Errorf("postGetUserOptionToUserScanner: пользователь не найден: %w", res.Err())
 	}
 	var user User
 	if err := user.Scan(ctx, res); err != nil {

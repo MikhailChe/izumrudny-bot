@@ -375,13 +375,16 @@ func (b *TBot) Init(
 	bot.Handle(telebot.OnMedia, func(ctx context.Context, c telebot.Context) error {
 		ctx, cancel := context.WithTimeout(ctx, time.Second)
 		defer cancel()
-		user, err := userRepository.GetUser(ctx, userRepository.ByID(c.Sender().ID))
-		if err != nil {
-			return fmt.Errorf("telebot.OnMedia: %w", err)
+		if c.Chat().Type == telebot.ChatPrivate {
+			user, err := userRepository.GetUser(ctx, userRepository.ByID(c.Sender().ID))
+			if err != nil {
+				return fmt.Errorf("telebot.OnMedia: %w", err)
+			}
+			if user.Registration != nil {
+				return registrationService.HandleMediaCreated(ctx, user, c)
+			}
+			return forwardDeveloperHandler(ctx, c)
 		}
-		if user.Registration != nil && c.Chat().Type == telebot.ChatPrivate {
-			return registrationService.HandleMediaCreated(ctx, user, c)
-		}
-		return forwardDeveloperHandler(ctx, c)
+		return nil
 	})
 }
