@@ -283,7 +283,7 @@ SELECT * FROM user_event WHERE user = $id ORDER BY user, timestamp, id;`,
 func (r *UserRepository) ClearEvents(ctx context.Context, userID int64) error {
 	ctx, span := tracer.Open(ctx)
 	defer span.Close()
-	return r.DB.Table().Do(ctx, func(ctx context.Context, s table.Session) error {
+	return r.smartExecute(ctx, func(ctx context.Context, s table.Session) error {
 		ctx, span := tracer.Open(ctx)
 		defer span.Close()
 		_, _, err := s.Execute(
@@ -314,7 +314,7 @@ func (r *UserRepository) GetUser(ctx context.Context, userQueryExecutor getUserO
 	defer span.Close()
 	defer r.log.Debug("Закончил UserRepository::GetUser")
 	var user *User
-	if err := r.DB.Table().Do(ctx, func(ctx context.Context, s table.Session) error {
+	if err := r.smartExecute(ctx, func(ctx context.Context, s table.Session) error {
 		ctx, span := tracer.Open(ctx, tracer.Named("UserRepository::getUser::Do"))
 		defer span.Close()
 		var err error
@@ -323,7 +323,7 @@ func (r *UserRepository) GetUser(ctx context.Context, userQueryExecutor getUserO
 			return fmt.Errorf("userRepository::getUser::do: %w", err)
 		}
 		return nil
-	}, table.WithIdempotent()); err != nil {
+	}); err != nil {
 		return nil, err
 	}
 	return user, nil
@@ -438,7 +438,7 @@ func (r *UserRepository) FindByAppartment(ctx context.Context, house string, app
 func (r *UserRepository) UpsertUsername(ctx context.Context, userID int64, username string) {
 	ctx, span := tracer.Open(ctx, tracer.Named("UserRepository::UpsertUsername"))
 	defer span.Close()
-	if err := r.DB.Table().Do(ctx, func(ctx context.Context, s table.Session) error {
+	if err := r.smartExecute(ctx, func(ctx context.Context, s table.Session) error {
 		ctx, span := tracer.Open(ctx, tracer.Named("Do Upsert user"))
 		defer span.Close()
 		_, _, err := s.Execute(ctx,
@@ -457,7 +457,7 @@ func (r *UserRepository) UpsertUsername(ctx context.Context, userID int64, usern
 			return fmt.Errorf("UPSERT INTO `user`: %w", err)
 		}
 		return nil
-	}, table.WithIdempotent()); err != nil {
+	}); err != nil {
 		r.log.Error("Ошибка обновления пользователя", zap.Error(err))
 	}
 }
