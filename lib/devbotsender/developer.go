@@ -18,8 +18,28 @@ func ForwardToDeveloper(log *zap.Logger) func(context.Context, telebot.Context) 
 		if c.Chat().Type != telebot.ChatPrivate {
 			return nil
 		}
+		if c.Message().IsReply() {
+			if origin := c.Message().ReplyTo; origin != nil {
+				forwardedFrom := origin.OriginalSender
+				if forwardedFrom == nil {
+					log.Error("Не получилось ответить на сообщение: некому отвечать")
+					return fmt.Errorf("did not get forwarded origin")
+				}
+				_, err := c.Bot().Send(ctx, forwardedFrom, c.Text())
+				if err != nil {
+					log.Error("Не получилось ответить на пересланное сообщение", zap.Error(err))
+					return err
+				}
+				
+				return err
+			}
+			if err := c.Reply("Не получилось ответить на пересланное сообщение: не нашел оригинал"); err != nil {
+				log.Error("Ошибка при ответе на пересланное сообщение", zap.Error(err))
+				return err
+			}
+		}
 		if err := doForwardToDeveloper(ctx, c); err != nil {
-			log.Error("Не могу передать разработчику")
+			log.Error("Не могу передать разработчику", zap.Error(err))
 			return c.Reply("Не получилось передать сообщение разработчику. Давайте попробуем позже.")
 		}
 		return c.Reply("Спасибо. Передал разработчику.")
