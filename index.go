@@ -26,6 +26,12 @@ func Handler(ctx context.Context, body []byte) (*LambdaResponse, error) {
 	ctx, span := tracer.Open(ctx, tracer.Named("Handler"))
 	appInstance := app.APP(ctx)
 	defer func() {
+		span.Close()
+		if chromeTrace, err := span.PrintTrace(); err == nil {
+			appInstance.Log.Debug(string(chromeTrace))
+		}
+	}()
+	defer func() {
 		if r := recover(); r != nil {
 			appInstance.Log.WithOptions(zap.AddCallerSkip(3)).Error("Паника в верхнем уровне", zap.Any("panicObj", r))
 		}
@@ -53,11 +59,6 @@ func Handler(ctx context.Context, body []byte) (*LambdaResponse, error) {
 		appInstance.Log.Error("Error processing update", zap.Error(err), zap.Any("update", update))
 	}
 	appInstance.Log.Debug("Завершили процессинг обновления")
-
-	span.Close()
-	if chromeTrace, err := span.PrintTrace(); err == nil {
-		appInstance.Log.Debug(string(chromeTrace))
-	}
 
 	return &LambdaResponse{
 		StatusCode: 200,

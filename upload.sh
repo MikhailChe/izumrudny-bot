@@ -10,7 +10,7 @@ rm -rf .github
 yc serverless function version create \
   --function-id=d4eld3krf4lqpap8fe2p \
   --entrypoint index.Handler \
-  --runtime golang119 \
+  --runtime golang121 \
   --memory '128MB' \
   --execution-timeout '10s' \
   --service-account-id ajes7c34cpugc3r8ms57 \
