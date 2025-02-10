@@ -298,12 +298,6 @@ github.com/mattn/go-isatty v0.0.14/go.mod h1:7GGIvUiUoEMVVmxf/4nioHXj79iQHKdU27k
 github.com/matttproud/golang_protobuf_extensions v1.0.1/go.mod h1:D8He9yQNgCq6Z5Ld7szi9bcBfOoFv/3dc6xSMkL2PC0=
 github.com/miekg/dns v1.1.26/go.mod h1:bPDLeHnStXmXAq1m/Ch/hvfNHr14JKNPMBo3VZKjuso=
 github.com/miekg/dns v1.1.41/go.mod h1:p6aan82bvRIyn+zDIv9xYNUpwa73JcSh9BKwknJysuI=
-github.com/mikhailche/telebot v0.0.0-20230911130620-a7aabc11db05 h1:1SBT04n7I2kcxkmnIYKbbTGsWspDktYMeuRyLOqLS2c=
-github.com/mikhailche/telebot v0.0.0-20230911130620-a7aabc11db05/go.mod h1:GqUHE+jQuDv/YM4XlChlnFvKsBw668xZQ5U+TgMKRbE=
-github.com/mikhailche/telebot v0.0.0-20230914095709-3b805e1a30d6 h1:KMvSqJ5gWR88GBT9LsH9Pi66pyb6uzpdlgYaVCTWD+Y=
-github.com/mikhailche/telebot v0.0.0-20230914095709-3b805e1a30d6/go.mod h1:LXNpkNA+XopV9Rn9+UU6rSr4dlS7QRCMg5B+x+mvCe4=
-github.com/mikhailche/telebot v0.0.0-20230919175135-0218045249fa h1:PvFw9v7jDjeSldQiANtmFJkLjfhDKn8diW+kamJKGjk=
-github.com/mikhailche/telebot v0.0.0-20230919175135-0218045249fa/go.mod h1:LXNpkNA+XopV9Rn9+UU6rSr4dlS7QRCMg5B+x+mvCe4=
 github.com/mikhailche/telebot v0.0.0-20230920205458-6d5a982b8ef0 h1:szoaJnJ147N//H3acW9SU65HwfbDSSx1LmYodHRS/sQ=
 github.com/mikhailche/telebot v0.0.0-20230920205458-6d5a982b8ef0/go.mod h1:LXNpkNA+XopV9Rn9+UU6rSr4dlS7QRCMg5B+x+mvCe4=
 github.com/mitchellh/cli v1.1.0/go.mod h1:xcISNoH86gajksDmfB23e/pu+B+GeFRMYmoHXxx3xhI=
@@ -883,8 +877,8 @@ google.golang.org/protobuf v1.26.0-rc.1/go.mod h1:jlhhOSvTdKEhbULTjvd4ARK9grFBp0
 google.golang.org/protobuf v1.26.0/go.mod h1:9q0QmTI4eRPtz6boOQmLYwt+qCgq0jsYwAQnmE0givc=
 google.golang.org/protobuf v1.27.1/go.mod h1:9q0QmTI4eRPtz6boOQmLYwt+qCgq0jsYwAQnmE0givc=
 google.golang.org/protobuf v1.28.0/go.mod h1:HV8QOd/L58Z+nl8r43ehVNZIU/HEI6OcFqwMG9pJV4I=
-google.golang.org/protobuf v1.30.0 h1:kPPoIgf3TsEvrm0PFe15JQ+570QVxYzEvvHqChK+cng=
-google.golang.org/protobuf v1.30.0/go.mod h1:HV8QOd/L58Z+nl8r43ehVNZIU/HEI6OcFqwMG9pJV4I=
+google.golang.org/protobuf v1.33.0 h1:uNO2rsAINq/JlFpSdYEKIZ0uKD/R9cpdv0T+yoGwGmI=
+google.golang.org/protobuf v1.33.0/go.mod h1:c6P6GXX6sHbq/GpV6MGZEdwhWPcYBgnhAHhKbcUYpos=
 gopkg.in/alecthomas/kingpin.v2 v2.2.6/go.mod h1:FMv+mEhP44yOT+4EoQTLFTRgOQ1FBLkstjWtayDeSgw=
 gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
 gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
