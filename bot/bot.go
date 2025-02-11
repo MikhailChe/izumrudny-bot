@@ -73,7 +73,7 @@ func (b *TBot) Init(
 				log.Error("Не смог логировать в телегу", zap.Error(err))
 			}
 		},
-		Client: http.TracedHttpClient(ctx, telegramToken),
+		Client: http.TracedHttpClient(ctx, log.Named("telegram-http-log"), telegramToken),
 	}
 
 	_, telebotNewBotSpan := tracer.Open(ctx, tracer.Named("NewBot"))
