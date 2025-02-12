@@ -3,9 +3,11 @@ package bot
 import (
 	"context"
 	"fmt"
+	"io"
 	"math/rand"
 	"mikhailche/botcomod/lib/devbotsender"
 	"mikhailche/botcomod/lib/tracer.v2"
+	"mikhailche/botcomod/lib/vision"
 	"os"
 	"time"
 
@@ -383,8 +385,28 @@ func (b *TBot) Init(
 			if user.Registration != nil {
 				return registrationService.HandleMediaCreated(ctx, user, c)
 			}
+			workWithPhoto(ctx, c, log)
 			return forwardDeveloperHandler(ctx, c)
 		}
 		return nil
 	})
+}
+
+func workWithPhoto(ctx context.Context, c telebot.Context, log *zap.Logger) {
+	if photo := c.Message().Photo; photo != nil {
+		reader, err := c.Bot().File(&photo.File)
+		if err != nil {
+			log.Error("Tried to convert file, but failed", zap.Error(err))
+			return
+		}
+		data, err := io.ReadAll(reader)
+		if err != nil {
+			log.Error("Tried to read file, but failed", zap.Error(err))
+		}
+		plates, err := vision.DetectLicensePlates(ctx, "JPEG", data)
+		if err != nil {
+			log.Error("Tried to detec license plates, but failed", zap.Error(err))
+		}
+		log.Info("Here are license plates detected", zap.Strings("plates", plates))
+	}
 }
