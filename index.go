@@ -40,6 +40,13 @@ func Handler(ctx context.Context, body []byte) (*LambdaResponse, error) {
 	if err := json.Unmarshal(body, &request); err != nil {
 		appInstance.Log.Error("Не получилось распарсить запрос", zap.Error(err))
 	}
+	appInstance.Log.Info("Parsed lambda request",
+		zap.ByteString("body", body),
+		zap.String("lambdaRuntimeFunctionName", ctx.Value("lambdaRuntimeFunctionName").(string)),
+		zap.String("lambdaRuntimeFunctionVersion", ctx.Value("lambdaRuntimeFunctionVersion").(string)),
+		zap.Int("lambdaRuntimeMemoryLimit", ctx.Value("lambdaRuntimeMemoryLimit").(int)),
+		zap.String("lambdaRuntimeRequestID", ctx.Value("lambdaRuntimeRequestID").(string)),
+	)
 	var updateMap map[string]any
 	_ = json.Unmarshal([]byte(request.Body), &updateMap)
 	appInstance.UpdateLogger.LogUpdate(ctx, updateMap, request.Body)

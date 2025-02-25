@@ -403,7 +403,13 @@ func workWithPhoto(ctx context.Context, c telebot.Context, log *zap.Logger) {
 		if err != nil {
 			log.Error("Tried to read file, but failed", zap.Error(err))
 		}
-		plates, err := vision.DetectLicensePlates(ctx, "JPEG", data)
+		v, err := vision.NewClient()
+		if err != nil {
+			log.Error("Tried to create vision client, but failed",
+				zap.Error(err))
+			return
+		}
+		plates, err := v.DetectLicensePlates(ctx, "JPEG", data, "")
 		if err != nil {
 			log.Error("Tried to detec license plates, but failed", zap.Error(err))
 		}
