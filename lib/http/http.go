@@ -80,12 +80,16 @@ func tracedRoundTripper(logger *zap.Logger, secrets ...string) roundTripperFunc 
 }
 
 func logRequest(r *http.Request, logger *zap.Logger, callID string, secrets ...string) {
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		logger.Error("Failed to read request body", zap.Error(err))
-		return
+	var body []byte
+	if r.Body != nil {
+		var err error
+		body, err = io.ReadAll(r.Body)
+		if err != nil {
+			logger.Error("Failed to read request body", zap.Error(err))
+			return
+		}
+		r.Body = io.NopCloser(bytes.NewBuffer(body)) // Reset body for further use
 	}
-	r.Body = io.NopCloser(bytes.NewBuffer(body)) // Reset body for further use
 
 	// Mask secrets in URL, headers, and body
 	maskedURL := maskSecretsInString(r.URL.String(), secrets...)
@@ -111,8 +115,14 @@ func logRequest(r *http.Request, logger *zap.Logger, callID string, secrets ...s
 }
 
 func logResponse(resp *http.Response, logger *zap.Logger, callID string, secrets ...string) {
-	body, _ := io.ReadAll(resp.Body)
-	resp.Body = io.NopCloser(bytes.NewBuffer(body)) // Reset body for further use
+	var body []byte
+	if resp.Body != nil {
+		var err error
+		body, err = io.ReadAll(resp.Body)
+		if err == nil {
+			resp.Body = io.NopCloser(bytes.NewBuffer(body)) // Reset body for further use
+		}
+	}
 
 	// Mask secrets in headers and body
 	maskedHeaders := maskSecrets(resp.Header, secrets...)
@@ -137,12 +147,16 @@ func logResponse(resp *http.Response, logger *zap.Logger, callID string, secrets
 }
 
 func logError(r *http.Request, err error, logger *zap.Logger, callID string, secrets ...string) {
-	body, readErr := io.ReadAll(r.Body)
-	if readErr != nil {
-		logger.Error("Failed to read request body", zap.Error(readErr))
-		return
+	var body []byte
+	if r.Body != nil {
+		var readErr error
+		body, readErr = io.ReadAll(r.Body)
+		if readErr != nil {
+			logger.Error("Failed to read request body", zap.Error(readErr))
+			return
+		}
+		r.Body = io.NopCloser(bytes.NewBuffer(body)) // Reset body for further use
 	}
-	r.Body = io.NopCloser(bytes.NewBuffer(body)) // Reset body for further use
 
 	// Mask secrets in URL, headers, and body
 	maskedURL := maskSecretsInString(r.URL.String(), secrets...)
