@@ -14,7 +14,7 @@ yc serverless function version create \
   --entrypoint index.Handler \
   --runtime golang121 \
   --memory '128MB' \
-  --execution-timeout '10s' \
+  --execution-timeout '30s' \
   --service-account-id ajes7c34cpugc3r8ms57 \
   --secret id=e6q537vrkm5h3k4bmt7g,key=token,environment-variable=TELEGRAM_TOKEN \
   --source-path . && \
