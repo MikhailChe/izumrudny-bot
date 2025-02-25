@@ -376,7 +376,7 @@ func (b *TBot) Init(
 		return manageAntiSpam(log, groupChats, obsceneFilter)(ctx, c)
 	})
 	bot.Handle(telebot.OnMedia, func(ctx context.Context, c telebot.Context) error {
-		ctx, cancel := context.WithTimeout(ctx, time.Second)
+		ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		defer cancel()
 		if c.Chat().Type == telebot.ChatPrivate {
 			user, err := userRepository.GetUser(ctx, userRepository.ByID(c.Sender().ID))
@@ -388,7 +388,7 @@ func (b *TBot) Init(
 			}
 			if userRepository.IsAdmin(ctx, user.ID) {
 				plates := workWithPhoto(ctx, c, log)
-				c.Reply(fmt.Sprintf("License plates: %v", plates))
+				return c.Reply(fmt.Sprintf("License plates: %v", plates))
 			}
 			return forwardDeveloperHandler(ctx, c)
 		}
