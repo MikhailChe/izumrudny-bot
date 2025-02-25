@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/rand"
 	"mikhailche/botcomod/handlers/middleware/ydbctx"
+	"mikhailche/botcomod/lib/devbotsender"
 	"mikhailche/botcomod/lib/tracer.v2"
 	"time"
 
@@ -474,13 +475,13 @@ func (r *UserRepository) IsResident(ctx context.Context, userID int64) bool {
 }
 
 func (r *UserRepository) IsAdmin(ctx context.Context, userID int64) bool {
-	ctx, span := tracer.Open(ctx, tracer.Named("UserRepository::IsAdmin"))
+	_, span := tracer.Open(ctx, tracer.Named("UserRepository::IsAdmin"))
 	defer span.Close()
-	return userID == 257582730
+	return userID == devbotsender.DeveloperID
 }
 
 func GenerateApproveCode(ctx context.Context, length int) string {
-	ctx, span := tracer.Open(ctx, tracer.Named("GenerateApproveCode"))
+	_, span := tracer.Open(ctx, tracer.Named("GenerateApproveCode"))
 	defer span.Close()
 	alphabet := []rune("123456789ABCEHKMOPTX")
 	var code []rune

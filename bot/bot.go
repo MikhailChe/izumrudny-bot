@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
+	"mikhailche/botcomod/lib/cloud"
 	"mikhailche/botcomod/lib/devbotsender"
 	"mikhailche/botcomod/lib/tracer.v2"
 	"mikhailche/botcomod/lib/vision"
@@ -385,19 +386,22 @@ func (b *TBot) Init(
 			if user.Registration != nil {
 				return registrationService.HandleMediaCreated(ctx, user, c)
 			}
-			workWithPhoto(ctx, c, log)
+			if userRepository.IsAdmin(ctx, user.ID) {
+				plates := workWithPhoto(ctx, c, log)
+				c.Reply(fmt.Sprintf("License plates: %v", plates))
+			}
 			return forwardDeveloperHandler(ctx, c)
 		}
 		return nil
 	})
 }
 
-func workWithPhoto(ctx context.Context, c telebot.Context, log *zap.Logger) {
+func workWithPhoto(ctx context.Context, c telebot.Context, log *zap.Logger) []string {
 	if photo := c.Message().Photo; photo != nil {
 		reader, err := c.Bot().File(&photo.File)
 		if err != nil {
 			log.Error("Tried to convert file, but failed", zap.Error(err))
-			return
+			return nil
 		}
 		data, err := io.ReadAll(reader)
 		if err != nil {
@@ -407,12 +411,14 @@ func workWithPhoto(ctx context.Context, c telebot.Context, log *zap.Logger) {
 		if err != nil {
 			log.Error("Tried to create vision client, but failed",
 				zap.Error(err))
-			return
+			return nil
 		}
-		plates, err := v.DetectLicensePlates(ctx, "JPEG", data, "")
+		plates, err := v.DetectLicensePlates(ctx, "JPEG", data, cloud.WithIamToken)
 		if err != nil {
 			log.Error("Tried to detec license plates, but failed", zap.Error(err))
 		}
 		log.Info("Here are license plates detected", zap.Strings("plates", plates))
+		return plates
 	}
+	return nil
 }
